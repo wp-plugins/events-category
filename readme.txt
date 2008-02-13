@@ -7,7 +7,8 @@ Donate link: http://weston.ruter.net/donate/
 
 Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts
 to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp
-is used as the time stamp. Upcoming events widget included; iCal feed made available.
+is used as the time stamp. Upcoming events widget included; includes iCal feed. HTML output contains hCalendar, hCard, geo, and adr
+microformats.
 
 == Description ==
 
@@ -16,7 +17,8 @@ improving this plugin if you see real potential or find great usefulness in it.*
 
 Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts
 to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp
-is used as the time stamp. Upcoming events widget included; iCal feed made available.
+is used as the time stamp. Upcoming events widget included; includes iCal feed. HTML output contains hCalendar, hCard, geo, and adr
+microformats.
 
 = Quick Start =
 
@@ -24,7 +26,6 @@ is used as the time stamp. Upcoming events widget included; iCal feed made avail
 1. Customize your single.php and category.php templates similarly to shown below
 1. Create new posts in the "Events" category
 1. Add the Upcoming Events widget to the sidebar
-1. Before "The Loop" in your home template (either index.php or home.php), add <code>query_posts('cat=-' . get_option('eventscategory_ID'))</code> to prevent the future event posts from cluttering up your post feed.
 
 = How it works =
 
@@ -56,9 +57,8 @@ page of results where <code>eventscategory-position</code> is "0"). Likewise, on
 <code>/category/events/past/</code> (<code>/category/events/past/1/</code> is equivalent where <code>eventscategory-position</code> is "-1");
 the second page of past events would appear as <code>/category/events/past/2/</code> and so on.
 
-Note that since all events are posts, you should run something like <code>query_posts('cat=-' . get_option('eventscategory_ID'))</code> on your
-home template, otherwise all of your future posts will fill the first pages of your results. The main thing is that you don't display
-posts from the events category on any template except the events category templates.
+Note that since all events are posts, the default posts page and feed will filter out all posts dated after the current time;
+otherwise all of your future posts will fill the first pages of your results.
 
 = Creating a new event =
 
@@ -79,6 +79,8 @@ The following template tags are introduced:
 * <code>eventscategory_the_time($dt_format = '')</code> -- echos the preceding function
 * <code>eventscategory_get_the_location($before = '', $after = '', $adr_format = '')</code> -- if no location is provided, nothing is returned
 * <code>eventscategory_the_location($before = '', $after = '', $adr_format = '')</code> -- echos the preceding function
+
+The HTML output from these functions is tagged using hCalendar, hCard, geo, and adr microformats.
 
 The <code>$dt_format</code> (date-time format) is a hybrid version of the format accepted by PHP's date() function:
 
@@ -149,13 +151,9 @@ The <code>$adr_format</code> (address format) is a string incorporating adr micr
 
 
 	<?php
-	$cats = get_the_category();
-	$isEventsCat = is_events_category($cats[0]->cat_ID); 
+	$isEventsCat = is_events_category(get_the_category());
 	?>
-	<div class="post post-<?php the_ID(); ?><?php
-	if($isEventsCat)
-		echo ' vevent';
-	?>">
+	<div class="post post-<?php the_ID(); if($isEventsCat) echo ' vevent'; ?>">
 		<h2><a class="<?php if($isEventsCat) echo ' summary' ?>" href="<?php echo get_permalink() ?>" rel="bookmark" title="Permanent Link: <?php the_title_attribute(); ?>"><?php the_title(); ?></a></h2>
 		<?php
 		if($isEventsCat): ?>
@@ -173,26 +171,29 @@ The <code>$adr_format</code> (address format) is a string incorporating adr micr
 
 
 = Changelog =
+*2008-02-13: 0.1 (beta)
+
+* <code>is_events_category()</code> now accepts arrays of category IDs or category objects so that <code>is_events_category(get_the_category())</code> can be used in the single.php template.
+* Future events posts now no longer appear on the default posts page nor in the main posts feed.
+* Event feeds (RSS2 and iCal) are now automatically added to each page.
+* Event location in iCal feed has been improved
+
 *2008-02-12: 0.1 (alpha)
 
 * Initial version released
 
 = Todo =
 1. We can intercept the_content and the_excerpt and perhaps the_title filters, to prepend the event info.
-1. Automatically add iCal feed to head?
-1. Category post count incorrect when in admin managing posts
+1. Filter the_time to include the beginning and end dates, that is, the results from eventscategory_the_time... and include the format specified
 1. Seconds should be forbidden in the format, because if the minutes are hidden, the seconds will look like minutes? Or we can only remove the [i] if the [s] is 0
 1. Note: hitting tab from title should go to the start date
-1. Javascript validation of data needed
-1. No future events are being listed in Manage Pages
-1. Category count is broken in Manage Categories page as well as Posts Manage page
+1. Javascript validation of data needed, including ensuring that second date and time should maintain diff from first when the first is modified
+1. ??Category count is broken in Manage Categories page as well as Posts Manage page: Category post count incorrect when in admin managing posts
 1. Daylight savings time is messing with using duration as the indicator for the end time.
 1. We should handle the changing of the times of events by keeping track of the history of post_dates in multiple postmeta.event-dtprevious entries
 1. Issue: when displaying the timezone, we need to adjust it according to the gmt_offset
 1. Add 'category' field to microformat... <span class="category"><?php the_category() ?></span>
-1. We need to improve the iCal feed format for location
-1. Second date and time should maintain diff from first when the first is modified
 1. Add support for keeping track of attendees; RSVP status may be assigned by registered users via the comments form: http://microformats.org/wiki/hcalendar-brainstorming
 1. Add configuration page to modify the options
-1. We need to prevent events posts from showing up in the index feed.
+1. Once recurring events are supported, we'll have to modify the post-lists in Manage Posts to make them more navigable
 

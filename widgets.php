@@ -95,8 +95,21 @@ function eventscategory_widget_upcoming($args, $number = 1) {
 		print '</ol>';
 		if(empty($query_vars['category__in'])){
 			print '<div class="feeds">';
-			print '<a class="rss" title="' . htmlspecialchars(__('Subscribe to Events RSS feed', 'events-category')) . '" href="' . get_category_link(get_option('eventscategory_ID')) . 'feed/"><span>RSS</span></a> ';
-			print '<a class="ical" title="' . htmlspecialchars(__('Subscribe to Events iCalendar feed', 'events-category')) . '" href="' . get_category_link(get_option('eventscategory_ID')) . 'feed/ical/"><span>iCal</span></a>';
+			
+			#TODO: It may be that a different feed slug is used than 'feed'
+			global $wp_rewrite;
+			$catLink = get_category_link(get_option('eventscategory_ID'));
+			if($wp_rewrite->get_category_permastruct()){
+				$rssParam = 'feed/';
+				$icalParam = 'feed/ical/';
+			}
+			else {
+				$rssParam = '&feed=rss2';
+				$icalParam = '&feed=ical';
+			}
+			
+			print '<a class="rss"  rel="feed" type="application/rss+xml" title="' . htmlspecialchars(__('Subscribe to Events RSS feed', 'events-category')) . '" href="' . $catLink . $rssParam . '"><span>RSS</span></a> ';
+			print '<a class="ical" rel="feed" type="text/calendar" title="' . htmlspecialchars(__('Subscribe to Events iCalendar feed', 'events-category')) . '" href="' . $catLink . $icalParam . '"><span>iCal</span></a>';
 			print '</div>';
 		}
 		print '<div class="more"><a href="' . get_category_link(get_option('eventscategory_ID')) . '">' . __("More &raquo;", 'events-category') . '</a></div>';

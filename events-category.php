@@ -206,11 +206,23 @@ function is_events_category($catID = ''){
 	if(is_numeric($catID)){
 		$catIDs[] = (int)$catID;
 	}
-	else {
+	if(is_array($catID) && !empty($catID)){
+		$cats = array_values($catID);
+		if(is_object($cats[0]) && $cats[0]->cat_ID){
+			foreach($cats as $cat){
+				$catIDs[] = (int)$cat->cat_ID;
+			}
+		}
+		else if(is_numeric($cat[0])){
+			$catIDs = array_map('intval', $catID);
+		}
+	}
+	
+	if(empty($catIDs)) {
 		$query = &$wp_query;
 		
 		#This conditional is needed because if going to non-existent post under events category, it will think
-		#   that it is not single; we should modify is_events_category() to include this check
+		#   that it is not single
 		if($query->get('name'))
 			return false;
 		
@@ -239,24 +251,6 @@ function is_events_category($catID = ''){
 
 function eventscategory_request($request){
 	global $wp;
-	#If we aren't looking for a specific category, exclude the events category (and children???) from the list
-	//if(
-	//	!is_admin() &&
-	//	empty($request['s']) &&
-	//	empty($request['cat']) &&
-	//	empty($request['category_name'])
-	//){
-	//	$request['cat'] = '-' . get_option('eventscategory_ID');
-	//}
-	//if(is_home()){
-	//	
-	//	print "WHAT???s";
-	//}
-	
-	#TODO: We need to set -cat here if not is_home!!!!! It would be better to do this in parse_query action,
-	#      but we cannot because it is not called if no query params are passed (we cannot add new ones if there
-	#      is not at least one already.)
-	#      see query.php line 661
 	
 	#Get the current position in the timeline
 	if(is_numeric($_GET['eventscategory-position'])){
@@ -268,12 +262,6 @@ function eventscategory_request($request){
 			$request['eventscategory-position'] = (int)$ruleQuery['eventscategory-position'];
 	}
 	
-	//NOTE: We cannot do this here, 
-	//$request['eventscategory-position'] = (int)$_GET['eventscategory-position'];
-	//if(!$request['eventscategory-position']){
-	//	parse_str($wp->matched_query, $ruleQuery);
-	//	$request['eventscategory-position'] = (int)$ruleQuery['eventscategory-position'];
-	//}
 	return $request;
 }
 add_filter('request', 'eventscategory_request');
@@ -313,6 +301,31 @@ add_filter('posts_fields', 'eventscategory_posts_fields');
 
 #Tag the SQL query so that modifications can be made by the 'posts_request' filter
 function eventscategory_posts_where($sql){
+	global $wp_query, $wpdb;
+	
+	$query = &$wp_query;
+	
+	#From wp-includes/query.php line #658
+	if ( !( $query->is_singular || $query->is_archive || $query->is_search || $query->is_trackback || $query->is_404 || $query->is_admin || $query->is_comments_popup ) ){
+		#Modify the WHERE clause if is_home so that the future posts aren't displayed
+		$sql .= " AND $wpdb->posts.post_date < '" . current_time('mysql') . "'";
+	
+	//  #(Note: the preceding line is much more efficient)
+	//	#Modify the WHERE clause if is_home so that the future posts in the events category don't pollute the home feed
+	//	$cat = (int)get_option('eventscategory_ID');
+	//	$category__not_in = array($cat);
+	//	$category__not_in = array_merge($category__not_in, get_term_children($cat, 'category'));
+	//	
+	//	#From wp-includes/query.php line #941
+	//	if ( !empty($category__not_in) ) {
+	//		$ids = get_objects_in_term($category__not_in, 'category');
+	//		if(!is_wp_error($ids) && is_array($ids) && count($ids > 0)){
+	//			$out_posts = "'" . implode("', '", $ids) . "'";
+	//			$sql .= " AND $wpdb->posts.ID NOT IN ($out_posts)";
+	//		}
+	//	}
+	//	
+	}
 	return "/*EVENTS-WHERE*/$sql";
 }
 add_filter('posts_where', 'eventscategory_posts_where');
@@ -330,32 +343,6 @@ function eventscategory_filter_post_limits($sql){
 	return "/*EVENTS-LIMIT*/ $sql";
 }
 add_filter('post_limits', 'eventscategory_filter_post_limits');
-
-
-#loop_end Runs after the last post of the WordPress loop is processed. 
-
-#loop_start Runs before the first post of the WordPress loop is processed. 
-
-//$eventscategory_looping_queries = array();
-//function eventscategory_loop_start(){
-//	global $wp_query, $eventscategory_looping_queries;
-//	
-//	$query = $wp_query;
-//	foreach(debug_backtrace() as $call){
-//		if($call['class'] == 'WP_Query'){
-//			$query = $call['object'];
-//			break;
-//		}
-//	}
-//	
-//	array_push($eventscategory_looping_queries, $query);
-//}
-//add_action('loop_start', 'eventscategory_loop_start');
-//function eventscategory_loop_end(){
-//	global $eventscategory_looping_queries;
-//	array_pop($eventscategory_looping_queries);
-//}
-//add_action('loop_end', 'eventscategory_loop_end');
 
 
 #Modify the posts query to get the events properly
@@ -642,17 +629,44 @@ add_filter('the_content', 'eventscategory_the_content_rss');
 //	print "\t</Vevent>\n";
 //}
 //add_action('rss2_item', 'eventscategory_rss2_item');
-
-
 #Note: we should also add xCal 
 #xmlns="http://www.ietf.org/internet-drafts/draft-ietf-calsch-many-xcal-01.txt"
 
 
 
+function eventscategory_head_add_feeds(){
+	global $wp_rewrite;
+	$catLink = get_category_link(get_option('eventscategory_ID'));
+	
+	$rel = 'feed';
+	if(is_home() || is_page(get_option('page_on_front')) || is_events_category())
+		$rel = 'alternate';
+	else if(is_single() && is_events_category(get_the_category()))
+		$rel = 'home';
+	
+	#TODO: It may be that a different feed slug is used than 'feed'
+	if($wp_rewrite->get_category_permastruct()){
+		$rssParam = 'feed/';
+		$icalParam = 'feed/ical/';
+	}
+	else {
+		$rssParam = '&feed=rss2';
+		$icalParam = '&feed=ical';
+	}
+	
+	echo "\n";
+	echo "\t\t<link rel='$rel' type='application/rss+xml' title=\"" . __('Upcoming Events Feed', 'events-category') . "\" href=\"$catLink$rssParam\" />\n"; //feed/
+	echo "\t\t<link rel='$rel' type='text/calendar' title=\"" . __('Events Calendar iCal Feed', 'events-category') . "\" href=\"$catLink$icalParam\" />\n"; //feed/ical/
+	echo "\n";
+}
+add_action('wp_head', 'eventscategory_head_add_feeds');
+
 
 #http://tools.ietf.org/html/draft-royer-calsch-xcal-03
 #http://www.w3.org/TR/2005/NOTE-rdfcal-20050929/
 
+
+/** Template tags ********************************************************/
 
 function eventscategory_the_time($dt_format = ''){
 	echo eventscategory_get_the_time($dt_format);

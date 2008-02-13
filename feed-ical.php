@@ -82,20 +82,53 @@ while(have_posts()){
 		echo 'DTEND: ' . date('Ymd\THis', (int)get_post_time('U', true) + intval($duration[0])) . "Z\n";
 	else
 		echo "DTEND:" . get_post_time('Ymd\THis', true) . "Z\n";
-	echo 'DTSTAMP:' . get_post_time('Ymd\THis', true) . "Z\n";
+	#echo 'DTSTAMP:' . get_post_time('Ymd\THis', true) . "Z\n";
 	
 	#LOCATION: The property defines the intended venue for the activity
 	#          defined by a calendar component.
-	//$location = get_post_custom_values('event-location');
-	//if(!empty($location))
-	//	echo "LOCATION:" . eventscategory_escape_ical_text($location[0]) . "\n";
+	
+
+	global $eventscategory_all_fieldnames;
+	
+	$fieldValues = array();
+	foreach($eventscategory_all_fieldnames as $fieldName){
+		list($value) = get_post_custom_values('event-' . $fieldName, $post->ID);
+		if(!empty($value))
+			$fieldValues[$fieldName] = $value;
+	}
+	#$is_adr = @($fieldValues['extended-address']
+	#		   || $fieldValues['street-address']
+	#		   || $fieldValues['locality']
+	#		   || $fieldValues['region']
+	#		   || $fieldValues['postal-code']
+	#		   || $fieldValues['country-name']);
+	#$is_geo = @(is_numeric($fieldValues['latitude']) && is_numeric($fieldValues['longitude']));
+	#$is_hcard = !empty($fieldValues['fn_org']);
+	#$is_url = !empty($fieldValues['url']);
+	
+	$locationFields = array();
+	if(@$fieldValues['fn_org'])
+		array_push($locationFields, $fieldValues['fn_org']);
+	if(@$fieldValues['street-address'])
+		array_push($locationFields, $fieldValues['street-address']);
+	if(@$fieldValues['extended-address'])
+		array_push($locationFields, $fieldValues['extended-address']);
+	if(@$fieldValues['locality'])
+		array_push($locationFields, $fieldValues['locality']);
+	if(@$fieldValues['region'])
+		array_push($locationFields, $fieldValues['region']);
+	if(@$fieldValues['postal-code'])
+		array_push($locationFields, $fieldValues['postal-code']);
+	if(@$fieldValues['country-name'])
+		array_push($locationFields, $fieldValues['country-name']);
+	
+	if(!empty($locationFields))
+		echo "LOCATION:" . eventscategory_escape_ical_text(join(', ', $locationFields)) . "\n";
 	
 	#GEO: This property specifies information related to the global
 	#     position for the activity specified by a calendar component.
-	list($latitude) = get_post_custom_values('event-latitude');
-	list($longitude) = get_post_custom_values('event-longitude');
-	if(!empty($latitude) && !empty($longitude) && is_numeric($latitude) && is_numeric($longitude)){
-		echo "GEO:$latitude;$longitude\n";
+	if(@(is_numeric($fieldValues['latitude']) && is_numeric($fieldValues['longitude']))){
+		echo "GEO:$fieldValues[latitude];$fieldValues[longitude]\n";
 	}
 	
 	#SUMMARY: This property defines a short summary or subject for the calendar component.
