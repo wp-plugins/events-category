@@ -3,7 +3,7 @@
 Plugin Name: Events Category
 Plugin URI: http://wordpress.org/extend/plugins/events-category/
 Description: Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp is used as the time stamp.
-Version: 0.5
+Version: 0.1 (alpha)
 Author: Weston Ruter
 Author URI: http://weston.ruter.net/
 Copyright: 2008, Weston Ruter
