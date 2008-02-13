@@ -88,7 +88,9 @@ The <code>$adr_format</code> (address format) is a string incorporating adr micr
 
 	[%street-address%]\n[%extended-address%]\n[%locality%][, %region%][ %postal-code%]\n[%country-name%]
 
-=Sample category.php Template=
+= Sample category.php Template =
+
+
 	<?php if (have_posts()) : ?>
 	<h2>
 		<?php
@@ -143,7 +145,8 @@ The <code>$adr_format</code> (address format) is a string incorporating adr micr
 	<?php endif; ?>
 
 
-=Sample single.php Template=
+= Sample single.php Template =
+
 
 	<?php
 	$cats = get_the_category();
