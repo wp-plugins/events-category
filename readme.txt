@@ -66,12 +66,12 @@ Creating a new event is just creating a new post and assigning it to the "Events
 initially activiating the plugin. Once you select the "Events" category for the post, additional controls will appear asking for the necessary
 information to create an event, including the start date-time and end-date time, and the location.
 
-=Upcoming Events Widget=
+= Upcoming Events Widget =
 
 Multiple upcoming events widgets may be added, and each one may be customized to show only certain categories of events,
 to show a specified number of posts, to include the location, and to customize the date-time format and the address format.
 
-=Template Tags and Tech=
+= Template Tags and Data Formatting =
 
 The following template tags are introduced:
 
