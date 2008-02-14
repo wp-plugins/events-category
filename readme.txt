@@ -171,14 +171,14 @@ The <code>$adr_format</code> (address format) is a string incorporating adr micr
 
 
 = Changelog =
-*2008-02-13: 0.1 (beta)
+*2008-02-13: 0.1 (beta)*
 
 * <code>is_events_category()</code> now accepts arrays of category IDs or category objects so that <code>is_events_category(get_the_category())</code> can be used in the single.php template.
 * Future events posts now no longer appear on the default posts page nor in the main posts feed.
 * Event feeds (RSS2 and iCal) are now automatically added to each page.
 * Event location in iCal feed has been improved
 
-*2008-02-12: 0.1 (alpha)
+*2008-02-12: 0.1 (alpha)*
 
 * Initial version released
 
