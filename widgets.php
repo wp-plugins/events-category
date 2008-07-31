@@ -20,6 +20,19 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+$eventscategory_default_widget_date_format = __('M. jS[, g][:i][a]{[ - ][M. ][j][S,] g[:i]a} T', 'events-category');
+$eventscategory_default_widget_address_format = __("[%street-address%]\n[%extended-address%]\n[%locality%][, %region%][ %postal-code%]\n[%country-name%]", 'events-category');
+add_option('eventscategory_widget_upcoming', array(
+	'number' => 1,
+	'defaults' => array(
+		'title' => __('Upcoming Events', 'events-category'),
+		'show_posts' => 3,
+		'display_location' => true,
+		'date_format' => $eventscategory_default_widget_date_format,
+		'address_format' => $eventscategory_default_widget_address_format,
+		'selected_categories' => array()
+	)
+));
 
 function eventscategory_widget_upcoming($args, $number = 1) { 
     global $wpdb, $post, $wp_query, $wp_rewrite, $eventscategory_feed_names, $eventscategory_feed_mime_types;

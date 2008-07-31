@@ -46,19 +46,6 @@ add_option('eventscategory_address_format', $eventscategory_default_main_address
 
 #Including the year: M. j[, Y][, g][:i][a]{[ – ][M. ][j, ][Y, ]g[:i]a} T
 
-$eventscategory_default_widget_date_format = __('M. jS[, g][:i][a]{[ - ][M. ][j][S,] g[:i]a} T', 'events-category');
-$eventscategory_default_widget_address_format = __("[%street-address%]\n[%extended-address%]\n[%locality%][, %region%][ %postal-code%]\n[%country-name%]", 'events-category');
-add_option('eventscategory_widget_upcoming', array(
-	'number' => 1,
-	'defaults' => array(
-		'title' => __('Upcoming Events', 'events-category'),
-		'show_posts' => 3,
-		'display_location' => true,
-		'date_format' => $eventscategory_default_widget_date_format,
-		'address_format' => $eventscategory_default_widget_address_format,
-		'selected_categories' => array()
-	)
-));
 
 $eventscategory_all_fieldnames = array(
 	'fn_org',
@@ -125,7 +112,7 @@ function eventscategory_save_post($postID, $post){
 	}
 	global $wpdb, $eventscategory_all_fieldnames;
 	
-	if(preg_match('/^\d\d\d\d-\d\d-\d\d$/', $_POST['eventscategory_dend'])){
+	if(preg_match('/^\d\d\d\d-\d\d-\d\d$/', $_POST['eventscategory_dend'])){ #PROBLEM
 		$dtstart = $post->post_date;
 		
 		#Find the end date and calculate and save the duration
@@ -158,15 +145,15 @@ function eventscategory_save_post($postID, $post){
 add_action('save_post', 'eventscategory_save_post', 10, 2);
 
 
-
+#Modify the rewrite rules so that they will know about the special URLs for event categories
 function eventscategory_category_rewrite_rules($rules){
 	global $wp_query, $wp_rewrite;
 	$eventsCategoryID = (int)get_option('eventscategory_ID');
 	$eventCategoryPaths = array();
 	$eventCats = array_merge(
-					array(get_category($eventsCategoryID)),
-					get_categories('child_of=' . $eventsCategoryID . '&hide_empty=0')
-				);
+		array(get_category($eventsCategoryID)),
+		get_categories('child_of=' . $eventsCategoryID . '&hide_empty=0')
+	);
 	
 	#Get the paths to all of the event categories
 	foreach($eventCats as $eventCat){
@@ -226,9 +213,9 @@ function is_events_category($catID = ''){
 	global $wp_query;
 	
 	$catIDs = array();
-	if(is_numeric($catID)){
+	if(is_numeric($catID))
 		$catIDs[] = (int)$catID;
-	}
+	
 	if(is_array($catID) && !empty($catID)){
 		$cats = array_values($catID);
 		if(is_object($cats[0]) && $cats[0]->cat_ID){
@@ -270,10 +257,9 @@ function is_events_category($catID = ''){
 }
 
 
+#Get the current position in the timeline
 function eventscategory_request($request){
 	global $wp;
-	
-	#Get the current position in the timeline
 	if(is_numeric($_GET['eventscategory-position'])){
 		$request['eventscategory-position'] = (int)$_GET['eventscategory-position'];
 	}
@@ -282,7 +268,6 @@ function eventscategory_request($request){
 		if(is_numeric($ruleQuery['eventscategory-position']))
 			$request['eventscategory-position'] = (int)$ruleQuery['eventscategory-position'];
 	}
-	
 	return $request;
 }
 add_filter('request', 'eventscategory_request');
@@ -293,7 +278,6 @@ function eventscategory_posts_fields($sql){
 	return is_events_category() ? "/*EVENTS-FIELDS*/ $sql" : $sql;
 }
 add_filter('posts_fields', 'eventscategory_posts_fields');
-
 
 #Tag the SQL query so that modifications can be made by the 'posts_request' filter
 function eventscategory_posts_where($sql){
@@ -307,13 +291,11 @@ function eventscategory_posts_where($sql){
 }
 add_filter('posts_where', 'eventscategory_posts_where');
 
-
 #Tag the SQL query so that modifications can be made by the 'posts_request' filter
 function eventscategory_filter_posts_groupby($sql){
 	return '/*EVENTS-GROUP-BY*/' . $sql;
 }
 add_filter('posts_groupby', 'eventscategory_filter_posts_groupby');
-
 
 #Tag the SQL query so that modifications can be made by the 'posts_request' filter
 function eventscategory_filter_post_limits($sql){
@@ -327,9 +309,9 @@ function eventscategory_filter_posts_request($sql){
 	global $wpdb, $paged, $wp_query;
 	
 	#PROBLEM: We must revisit is_events_category() to go up call stack or to be a new method of WP_Query()
-	#Can we create a new Global $eventscategory_wp_query??? Which is set if the query is events category. Then the function is_events_category can just check to see if it exists
+	#     Can we create a new Global $eventscategory_wp_query??? Which is set if the query is events category. Then the function is_events_category can just check to see if it exists
 	if(!is_admin() && !($wp_query->is_year || $wp_query->is_month || $wp_query->is_day) && is_events_category()){ #PROBLEM: this is not getting the value in the 
-		#This SQL query needs to be resdeigned to work with COUNT(*)?
+		#This SQL query should ideally be resdeigned to use COUNT(*)... but that would be very complicated
 		$countFutureSQL = #preg_replace('{(?<=SELECT)\s+SQL_CALC_FOUND_ROWS}',
 		                  #' ',
 						  preg_replace('{/\*EVENTS-FIELDS\*/.+?(?=FROM)}',
@@ -434,12 +416,6 @@ function eventscategory_wp_action(&$query){
 add_action('wp', 'eventscategory_wp_action');
 
 
-//function eventscategory_posts_results_filter($posts){
-//	return $posts;
-//}
-//add_filter('posts_results', 'eventscategory_posts_results_filter');
-
-
 //Note: when we are in future events, we should reverse the posts
 function eventscategory_the_posts($posts){
 	global $wp_query;
@@ -474,7 +450,9 @@ add_action('template_redirect', 'eventscategory_template_redirect');
 
 
 
-#Filter the URLs for the next and previous posts links
+#Filter the URLs for the next and previous posts links; this is a bit janky because we have
+#  to look at the function's call stack to know whether or not the URL being passed in
+#  is for the next or previous posts page
 function eventscategory_clean_url($url, $original_url, $context){
 	global $wp_query;
 	if(!is_admin() && is_events_category()){
