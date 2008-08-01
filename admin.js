@@ -55,7 +55,8 @@ $(function(){
 		var parts = str.split(/-/);
 		var date = new Date(0);
 		date.setFullYear(parseInt(parts[0], 10));
-		date.setMonth(parseInt(parts[1], 10)-1)
+		date.setDate(1);
+		date.setMonth(parseInt(parts[1], 10)-1);
 		date.setDate(parseInt(parts[2], 10));
 		return date;
 	}
@@ -103,10 +104,10 @@ $(function(){
 	}
 	
 	//When the post timestamp is modified, we must make sure that we also update the corresponding event details, and visa-versa
-	$('#mm, #jj, #aa, #hh, #mn').change(function(){
-		populateEventDateWithTimestamp();
-	});
-	$('#eventscategory_allday').change();
+	//$('#mm, #jj, #aa, #hh, #mn').change(function(){
+	//	populateEventDateWithTimestamp();
+	//});
+	//$('#eventscategory_allday').change();
 	
 	//Fix date formatting
 	$('#eventscategory_dstart, #eventscategory_dend').change(function(){
@@ -158,6 +159,14 @@ $(function(){
 			dEnd.val(dStart.val());
 			highlight(dEnd);
 		}
+		
+		//Update post timestamp
+		if($('#aa').val() != dStartDate.getFullYear() || $('#mm')[0].selectedIndex != dStartDate.getMonth() || $('#jj').val() != dStartDate.getDate()){
+			$('#aa').val(dStartDate.getFullYear());
+			$('#mm')[0].selectedIndex = dStartDate.getMonth();
+			$('#jj').val(dStartDate.getDate());
+			$('#aa, #mm, #jj').change();	
+		}
 	});
 	//When the event end date is changed
 	$('#eventscategory_dend').change(function(){
@@ -174,10 +183,10 @@ $(function(){
 	//When start date changed
 	$('#eventscategory_tstart').change(function(){
 		var isSameDate = $('#eventscategory_dstart').val() == $('#eventscategory_dend').val();
+		var tStart = parseTime($('#eventscategory_tstart').val());
+		var tEnd = parseTime($('#eventscategory_tend').val());
 		if(isSameDate){
 			//check to see if start time is less than the start time
-			var tStart = parseTime($('#eventscategory_tstart').val());
-			var tEnd = parseTime($('#eventscategory_tend').val());
 			if(
 			   (tStart.isPM && !tEnd.isPM) ||
 			   (tStart.hour > tEnd.hour  ) ||
@@ -186,14 +195,28 @@ $(function(){
 				highlight($('#eventscategory_tend').val($('#eventscategory_tstart').val()));
 			}
 		}
+		
+		//Update post timestamp
+		var hour = tStart.hour;
+		if(tStart.isPM)
+			hour += 12;
+		else if(!tStart.isPM && tStart.hour == 12)
+			hour = 0;
+		
+		if($('#hh').val() != hour || $('#mn').val() != tStart.minute){
+			$('#hh').val(hour);
+			$('#mn').val(tStart.minute);
+			$('#hh, #mn').change();
+		}
 	});
 	
+	//When end date changed
 	$('#eventscategory_tend').change(function(){
 		var isSameDate = $('#eventscategory_dstart').val() == $('#eventscategory_dend').val();
+		var tStart = parseTime($('#eventscategory_tstart').val());
+		var tEnd = parseTime($('#eventscategory_tend').val());
 		if(isSameDate){
 			//check to see if start time is less than the start time
-			var tStart = parseTime($('#eventscategory_tstart').val());
-			var tEnd = parseTime($('#eventscategory_tend').val());
 			if(
 			   (tStart.isPM && !tEnd.isPM) ||
 			   (tStart.hour > tEnd.hour  ) ||
