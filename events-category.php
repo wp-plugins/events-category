@@ -97,11 +97,38 @@ function eventscategory_activate(){
 }
 register_activation_hook(__FILE__, 'eventscategory_activate');
 
+function eventscategory_init(){
+	if(is_admin())
+		wp_enqueue_script( 'jquery' );
+}
+add_action('init', 'eventscategory_init');
+
 #Find future post in the Events category and publish them when saved
 function eventscategory_publish_future_post($postID){
+	$post = get_post($postID);
+	$eventsCategoryID = (int)get_option('eventscategory_ID');
+	
+	//Determine if one of the post categories is the event category or a descendent of the event category
+	if(!empty($eventsCategoryID)){
+		$isRelatedToEventCategory = false;
+		foreach(wp_get_post_categories($postID) as $catID){
+			if($catID == $eventsCategoryID || cat_is_ancestor_of($eventsCategoryID, (int)$catID)){
+				$isRelatedToEventCategory = true;
+				break;
+			}
+		}
+	}
+	
+	if($post->post_status == 'future' && (!$eventsCategoryID || $isRelatedToEventCategory))
+		wp_publish_post($postID);
+}
 
 //WE NEED TO MAKE SURE THAT THIS WILL WORK WITH AJAX SAVE! //TODO
 #
+
+
+
+#add_meta_box('pagecustomdiv', __('Custom Fields'), 'page_custom_meta_box', 'page', 'advanced', 'core');
 function eventscategory_save_post($postID, $post){
 	#Since publishing a post from the future causes the 'save_post' action to be done
 	#   check to see if it is future and stop if so, so that this functions logic
@@ -112,6 +139,8 @@ function eventscategory_save_post($postID, $post){
 	}
 	global $wpdb, $eventscategory_all_fieldnames;
 	
+	#Note that only the end date is sent using custom fields; the start date is sent using the
+	#  regular post timestamp variables; BUT, we should be putting them all in post_custom
 	if(preg_match('/^\d\d\d\d-\d\d-\d\d$/', $_POST['eventscategory_dend'])){ #PROBLEM
 		$dtstart = $post->post_date;
 		
@@ -534,7 +563,7 @@ add_filter('clean_url', 'eventscategory_clean_url', 10, 3);
 
 #require(dirname(__FILE__) . '/widgets.php'); #TODO
 #require(dirname(__FILE__) . '/feeds.php'); #TODO
-#require(dirname(__FILE__) . '/admin.php'); #TODO
+require(dirname(__FILE__) . '/admin.php'); #TODO
 require(dirname(__FILE__) . '/template-tags.php');
 
 ?>

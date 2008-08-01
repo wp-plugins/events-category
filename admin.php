@@ -1,35 +1,47 @@
 <?php
-/*
-Admin Routines for Events Category WordPress Plugin <http://wordpress.org/extend/plugins/events-category/>
-By Weston Ruter <http://weston.ruter.net/>
-Copyright: 2008, Weston Ruter
 
-GNU General Public License, Free Software Foundation <http://creativecommons.org/licenses/GPL/2.0/>
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-*/
-
-function eventscategory_init(){
-	if(is_admin())
-		wp_enqueue_script( 'jquery' );
+function eventscategory_admin_init(){
+	$filename = basename($_SERVER['SCRIPT_FILENAME']);
+	if(is_admin() && ($_REQUEST['page'] == 'events-category-options' || $filename == 'post-new.php' || $filename == 'post.php')){
+		add_action('wp_head', 'eventscategory_add_admin_style');
+		wp_enqueue_script('events-category', get_option('siteurl') . '/' . PLUGINDIR . '/events-category/admin.js', array('jquery'));
+		wp_enqueue_style('events-category', get_option('siteurl') . '/' . PLUGINDIR . '/events-category/admin.css');
+	}
 }
-add_action('init', 'coauthors_init');
+add_action('init', 'eventscategory_admin_init');
 
 function eventscategory_add_admin_style(){
-	echo '<link rel="stylesheet" type="text/css" href="../' . PLUGINDIR . '/events-category/admin.css" />';
+	#print '<!--';
+	#print_r($GLOBALS);
+	#print '-->';
+	#echo '<link rel="stylesheet" type="text/css" href="/' . PLUGINDIR . '/events-category/admin.css" />';
 }
 add_action('admin_head', 'eventscategory_add_admin_style');
+
+
+
+function eventscategory_modify_menu(){
+	add_options_page(
+		__('Events Category', 'events-category'),
+		__('Events Category', 'events-category'),
+		8,
+		'events-category-options',
+		'eventscategory_options_page'
+	);
+	add_meta_box('eventscategorydiv', _('Event Details', 'events-category'), 'eventscategory_add_meta_box', 'post', 'normal', 'high');
+}
+add_action('admin_menu', 'eventscategory_modify_menu');
+
+
+function eventscategory_add_meta_box($post){
+	
+	#only if $object->ID is in eventscategory?
+	
+	#echo "Events category!";
+	include(dirname(__FILE__) . '/admin_meta_box.php');
+}
+
 
 //function eventscategory_insert_data_form(){
 //	global $eventscategory_all_fieldnames;
@@ -53,22 +65,11 @@ add_action('admin_head', 'eventscategory_add_admin_style');
 #add_action('admin_footer', 'eventscategory_insert_data_form');
 
 
-function eventscategory_edit_category_form(){ //TODO
-	echo "<p>This category is an 'Events' category. If you would like to customize its configuration, visit the <a href=''>Options page</a>.</p>";
-}
-add_action('edit_category_form', 'eventscategory_edit_category_form');
+//function eventscategory_edit_category_form(){ //TODO
+//	echo "<p>This category is an 'Events' category. If you would like to customize its configuration, visit the <a href=''>Options page</a>.</p>";
+//}
+//add_action('edit_category_form', 'eventscategory_edit_category_form');
 
-
-function eventscategory_modify_menu(){
-	add_options_page(
-		__('Events Category', 'events-category'),
-		__('Events Category', 'events-category'),
-		8,
-		'events-category-options',
-		'eventscategory_options_page'
-	);
-}
-add_action('admin_menu', 'eventscategory_modify_menu');
 
 
 function eventscategory_options_page(){
@@ -95,9 +96,7 @@ function eventscategory_options_page(){
 		//	* Change the default format to be used by the datetime and location template tag functions
 		
 		
-		
 		?><div id='message' class="updated fade"><p><strong><?php _e('Options saved.', 'events-category' ); ?></strong></p></div><?php
-		
 	}
 	
 	?>
@@ -110,23 +109,30 @@ function eventscategory_options_page(){
 			?>
 			<input type="hidden" name="action" value="update" />
 
+			<h3>Timezone settings</h3>
 			<p>The following two options are only applicable if the format characters 'T' or 'e' (treated identically) appear in your date-time format string:</p>
-
-			<p>
-				<label>
-					<?php _e("Events timezone: ", 'events-category') ?>
-					<input type="text" size="10" name="eventscategory_timezone" value="<?php echo htmlspecialchars($timezone) ?>" />
-					<span class='tip'><?php printf(__("(For example, PST or GMT; this should correspond to your GMT offset: %d)", 'events-category'), get_option('gmt_offset')) ?></span>
-				</label>
-			</p>
-		
-			<p>
-				<label>
-					<?php _e("Events daylight-savings timezone: ", 'events-category') ?>
-					<input type="text" size="10" name="eventscategory_timezone_dst" value="<?php echo htmlspecialchars($timezone_dst) ?>" />
+			<table class='form-table'>
+				<tr>
+					<th>
+						<label for='eventscategory_timezone'><?php _e("Events timezone: ", 'events-category') ?></label>
+					</th>
+					<td>
+						<input type="text" size="10" name="eventscategory_timezone" id='eventscategory_timezone' value="<?php echo htmlspecialchars($timezone) ?>" />
+						<span class='tip'><?php printf(__("(For example, PST or GMT; this should correspond to your GMT offset: %d)", 'events-category'), get_option('gmt_offset')) ?></span>
+					</td>
+				</tr>
+			
+				<tr>
+					<th>
+						<label for='eventscategory_timezone_dst'><?php _e("Events daylight-savings timezone: ", 'events-category') ?></label>
+					</th>
+					<td>
+					<input type="text" size="10" name="eventscategory_timezone_dst" id="eventscategory_timezone_dst" value="<?php echo htmlspecialchars($timezone_dst) ?>" />
 					<span class='tip'><?php printf(__("(For example, PDT; same as above, but displayed when it is daylight savings time)", 'events-category'), get_option('gmt_offset')) ?></span>
-				</label>
-			</p>
+					</td>
+				</tr>
+			
+			</table>
 
 			<p class="submit">
 				<input type="submit" name="Submit" value="<?php _e('Update Options', 'events-category' ) ?>" />

@@ -1,0 +1,18 @@
+
+#eventscategory_dstart,
+#eventscategory_dend,
+#eventscategory_range_start,
+#eventscategory_range_end{
+	width:13ex;
+}
+#eventscategory_tstart,
+#eventscategory_tend {
+	width:7ex;
+}
+
+
+/*** OPTIONS ******************/
+#events-category-options-form .tip {
+	font-size:smaller;
+	color:gray;
+}
