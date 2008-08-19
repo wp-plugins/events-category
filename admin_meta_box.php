@@ -21,6 +21,7 @@ eventscategory_all_id_lookup[eventscategory_id] = true;
 	<label for="eventscategory_dend"><?php _e('to', 'events-category') ?></label>
 	<input type="date" id="eventscategory_dend" name="eventscategory_dend" value="" required="required" />
 	<input type="time" id="eventscategory_tend" name="eventscategory_tend" value="" required="required" />
+	<input type="hidden" id="eventscategory_duration" name="eventscategory_duration" value="0" />
 	
 	<input type="checkbox" id="eventscategory_allday" name="eventscategory_allday" <?php
 	#$duration = get_post_meta($_GET['post'], 'event-duration');

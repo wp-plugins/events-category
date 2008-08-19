@@ -5,9 +5,85 @@ var $ = jQuery;
 //global eventscategory_id, eventscategory_all_id_lookup;
 
 
+function zPad(num){
+	num = String(num);
+	if(num.length == 1)
+		return '0' + num;
+	return num;
+}
+	
+function parseISODate(str){
+	var halfs = str.split(/[T ]/);
+	
+	var parts = halfs[0].split(/-/);
+	var date = new Date(0);
+	date.setFullYear(parseInt(parts[0], 10));
+	date.setDate(1);
+	date.setMonth(parseInt(parts[1], 10)-1);
+	date.setDate(parseInt(parts[2], 10));
+	if(halfs[1]){
+		parts = halfs[1].split(/:/);
+		date.setHours(parseInt(parts[0], 10));
+		date.setMinutes(parseInt(parts[1], 10));
+	}
+	return date;
+}
 
 $(function(){
 	
+	//Hide or show the time stamps
+	$('#eventscategory_allday').change(function(){
+		if(this.checked){
+			$('#eventscategory_tstart, #eventscategory_tend').hide().each(function(){this.disabled = true;});
+			$('#eventscategory_duration').val(0);
+		}
+		else {
+			$('#eventscategory_tstart, #eventscategory_tend').show().each(function(){this.disabled = false;});
+			
+			var duration = parseInt($('#eventscategory_duration').val(), 10);
+			if(!duration)
+				duration = 3600;
+			
+			//eventscategory_tstart
+			var dtstart = parseISODate($('#eventscategory_dstart').val() + 'T' + $('#hh').val() + ':' + $('#mn').val());
+			var dtend = new Date(dtstart.valueOf() + (duration*1000));
+			
+			$('#eventscategory_tstart').val(zPad(dtstart.getHours()) + ':' + zPad(dtstart.getMinutes()));
+			$('#eventscategory_tend').val(zPad(dtend.getHours()) + ':' + zPad(dtend.getMinutes()));
+		}
+	});
+	
+	//Populate the event category fields
+	var duration = parseInt($('#the-list tr td:has(input[value="_event_duration"]) + td > textarea').val(), 10);
+	$('#eventscategory_duration').val(duration);
+	if(duration){
+		$('#eventscategory_allday').removeAttr('checked').change();
+	}
+	else {
+		$('#eventscategory_allday').attr('checked','checked').change();
+		$('#eventscategory_duration').val(0);
+	}
+	
+	$('#eventscategory-fn_org').val(
+		$('#the-list tr td:has(input[value="_event_fn_org"]) + td > textarea').val());
+	$('#eventscategory-street-address').val(
+		$('#the-list tr td:has(input[value="_event_street-address"]) + td > textarea').val());
+	$('#eventscategory-extended-address').val(
+		$('#the-list tr td:has(input[value="_event_extended-address"]) + td > textarea').val());
+	$('#eventscategory-locality').val(
+		$('#the-list tr td:has(input[value="_event_locality"]) + td > textarea').val());
+	$('#eventscategory-region').val(
+		$('#the-list tr td:has(input[value="_event_region"]) + td > textarea').val());
+	$('#eventscategory-postal-code').val(
+		$('#the-list tr td:has(input[value="_event_postal-code"]) + td > textarea').val());
+	$('#eventscategory-country-name').val(
+		$('#the-list tr td:has(input[value="_event_country-name"]) + td > textarea').val());
+	$('#eventscategory-url').val(
+		$('#the-list tr td:has(input[value="_event_url"]) + td > textarea').val());
+	$('#eventscategory-latitude').val(
+		$('#the-list tr td:has(input[value="_event_latitude"]) + td > textarea').val());
+	$('#eventscategory-latitude').val(
+		$('#the-list tr td:has(input[value="_event_latitude"]) + td > textarea').val());
 	
 	//Iterate over all of the category checkboxes and see if any event category checkboxes are selected
 	$('#categories-all input[type=checkbox]').change(function(){
@@ -44,22 +120,7 @@ $(function(){
 		}, 3000);
 	}
 	
-	function zPad(num){
-		num = String(num);
-		if(num.length == 1)
-			return '0' + num;
-		return num;
-	}
 	
-	function parseISODate(str){
-		var parts = str.split(/-/);
-		var date = new Date(0);
-		date.setFullYear(parseInt(parts[0], 10));
-		date.setDate(1);
-		date.setMonth(parseInt(parts[1], 10)-1);
-		date.setDate(parseInt(parts[2], 10));
-		return date;
-	}
 	function parseTime(str){
 		return {
 			hour : parseInt(str.replace(/\D.+$/, ''), 10),
@@ -78,14 +139,6 @@ $(function(){
 		};
 	}
 	
-	//Hide or show the time stamps
-	$('#eventscategory_allday').change(function(){
-		if(this.checked)
-			$('#eventscategory_tstart, #eventscategory_tend').hide().attr('disabled','disabled');
-		else
-			$('#eventscategory_tstart, #eventscategory_tend').show().removeAttr('disabled');
-	});
-	
 	//
 	function populateEventDateWithTimestamp(isAllDay){
 		var d = getPostTimestamp();
@@ -100,7 +153,8 @@ $(function(){
 	
 	//Populate Event details with post timestamp
 	if(!$('#eventscategory_dstart').val()){
-		populateEventDateWithTimestamp(true);
+		//console.warn(isAllDay)
+		populateEventDateWithTimestamp(!!duration); //TODO
 	}
 	
 	//When the post timestamp is modified, we must make sure that we also update the corresponding event details, and visa-versa
@@ -224,6 +278,23 @@ $(function(){
 			){
 				highlight($('#eventscategory_tstart').val($('#eventscategory_tend').val()));
 			}
+		}
+	});
+	
+	//When any changed, then update duration
+	$('#eventscategory_dstart, #eventscategory_dend, #eventscategory_tstart, #eventscategory_tend').change(function(){
+		if(!$('#eventscategory_allday')[0].checked){
+			var dtstart = parseISODate($('#eventscategory_dstart').val() + 'T' + $('#eventscategory_tstart').val());
+			var dtend = parseISODate($('#eventscategory_dend').val() + 'T' + $('#eventscategory_tend').val());
+			
+			if(dtstart && dtend){
+				console.info([dtstart , dtend])
+				$('#eventscategory_duration').val(parseInt((dtend.valueOf() - dtstart.valueOf())/1000));
+				console.info($('#eventscategory_duration').val());
+			}
+			
+			
+			
 		}
 	});
 });

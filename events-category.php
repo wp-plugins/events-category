@@ -141,33 +141,40 @@ function eventscategory_save_post($postID, $post){
 	
 	#Note that only the end date is sent using custom fields; the start date is sent using the
 	#  regular post timestamp variables; BUT, we should be putting them all in post_custom
-	if(preg_match('/^\d\d\d\d-\d\d-\d\d$/', $_POST['eventscategory_dend'])){ #PROBLEM
-		$dtstart = $post->post_date;
-		
-		#Find the end date and calculate and save the duration
-		$dtend = $_POST['eventscategory_dend'];
-		if(empty($_POST['eventscategory_allday']) && preg_match('/^(\d?\d):\d\d$/', $_POST['eventscategory_tend']))
-			$dtend .= ' ' . $_POST['eventscategory_tend'] . ':00';
-		if(empty($_POST['eventscategory_allday']))
-			$duration = strtotime($dtend) - strtotime($dtstart);
-		else
-			$duration = 0;
-		if($duration < 0)
-			$duration = 0;
-			
-		if(!update_post_meta($postID, '_event_duration', $duration))
-			add_post_meta($postID, '_event_duration', $duration, true);
+	//if(preg_match('/^\d\d\d\d-\d\d-\d\d$/', $_POST['eventscategory_dend'])){ #PROBLEM
+	//	$dtstart = $post->post_date;
+	//	
+	//	#Find the end date and calculate and save the duration
+	//	$dtend = $_POST['eventscategory_dend'];
+	//	if(empty($_POST['eventscategory_allday']) && preg_match('/^(\d?\d):\d\d$/', $_POST['eventscategory_tend']))
+	//		$dtend .= ' ' . $_POST['eventscategory_tend'] . ':00';
+	//	if(empty($_POST['eventscategory_allday']) && @$_POST['eventscategory_tstart'] && @$_POST['eventscategory_tend'])
+	//		$duration = strtotime($dtend) - strtotime($dtstart);
+	//	else
+	//		$duration = 0;
+	//	if($duration < 0)
+	//		$duration = 0;
+	//		
+	//	if(!update_post_meta($postID, '_event_duration', $duration))
+	//		add_post_meta($postID, '_event_duration', $duration, true);
+	//}
+	
+	if(array_key_exists('eventscategory_duration', $_POST)){
+		if(!update_post_meta($postID, '_event_duration', $_POST['eventscategory_duration']))
+			add_post_meta($postID, '_event_duration', $_POST['eventscategory_duration'], true);
 	}
 	
 	#Update location
 	foreach($eventscategory_all_fieldnames as $fieldName){
-		$value = stripslashes($_POST['eventscategory-' . $fieldName]);
-		if(!empty($value)){
-			if(!update_post_meta($postID, '_event_' . $fieldName, $value))
-				add_post_meta($postID, '_event_' . $fieldName, $value, true);
-		}
-		else {
-			delete_post_meta($postID, '_event_' . $fieldName);
+		if(array_key_exists('eventscategory-' . $fieldName, $_POST)){
+			$value = stripslashes($_POST['eventscategory-' . $fieldName]);
+			if(!empty($value)){
+				if(!update_post_meta($postID, '_event_' . $fieldName, $value))
+					add_post_meta($postID, '_event_' . $fieldName, $value, true);
+			}
+			else {
+				delete_post_meta($postID, '_event_' . $fieldName);
+			}
 		}
 	}
 }
