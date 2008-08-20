@@ -48,9 +48,9 @@ function eventscategory_get_the_time($dt_format = ''){
 			#$endTimestamp = (int)get_post_time('U', true) + get_option('gmt_offset')*3600 + $duration; # - (int)get_post_time('I')*3600
 
 			$endTimestamp = mktime(
-				(int)get_post_time('G'),
+				(int)get_post_time('H'), //G for some reason is erroneous
 				(int)get_post_time('i'),
-				(int)get_post_time('s') + $duration,
+				(int)get_post_time('s')+$duration,
 				(int)get_post_time('m'),
 				(int)get_post_time('d'),
 				(int)get_post_time('Y')

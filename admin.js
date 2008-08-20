@@ -29,41 +29,66 @@ function parseISODate(str){
 	return date;
 }
 
-$(function(){
+function highlight(el){
+	var el = $(el);
+	el.css('background-color', '#FFFBCC');
+	setTimeout(function(){
+		el.css('background-color', '');
+	}, 3000);
+}
+
+function parseTime(str){
+	return {
+		hour : parseInt(str.replace(/\D.+$/, ''), 10),
+		minute : /:/.test(str) ? parseInt(str.replace(/(^\d+:)|\D+/g, ''), 10) : 0,
+		isPM : /(\b|\d)pm\b|\bp\D*\bm/i.test(str)
+	}
+}
+
+function getPostTimestamp(){
+	return {
+		month : parseInt($('#mm').val(), 10),
+		day   : parseInt($('#jj').val(), 10),
+		year  : parseInt($('#aa').val(), 10),
+		hour  : parseInt($('#hh').val(), 10),
+		minute: parseInt($('#mn').val(), 10)
+	};
+}
+
+function populateEventDateWithTimestamp(duration){
+	var d = getPostTimestamp();
 	
-	//Hide or show the time stamps
-	$('#eventscategory_allday').change(function(){
-		if(this.checked){
-			$('#eventscategory_tstart, #eventscategory_tend').hide().each(function(){this.disabled = true;});
-			$('#eventscategory_duration').val(0);
-		}
-		else {
-			$('#eventscategory_tstart, #eventscategory_tend').show().each(function(){this.disabled = false;});
-			
-			var duration = parseInt($('#eventscategory_duration').val(), 10);
-			if(!duration)
-				duration = 3600;
-			
-			//eventscategory_tstart
-			var dtstart = parseISODate($('#eventscategory_dstart').val() + 'T' + $('#hh').val() + ':' + $('#mn').val());
-			var dtend = new Date(dtstart.valueOf() + (duration*1000));
-			
-			$('#eventscategory_tstart').val(zPad(dtstart.getHours()) + ':' + zPad(dtstart.getMinutes()));
-			$('#eventscategory_tend').val(zPad(dtend.getHours()) + ':' + zPad(dtend.getMinutes()));
-		}
-	});
-	
-	//Populate the event category fields
-	var duration = parseInt($('#the-list tr td:has(input[value="_event_duration"]) + td > textarea').val(), 10);
-	$('#eventscategory_duration').val(duration);
-	if(duration){
-		$('#eventscategory_allday').removeAttr('checked').change();
+	if(!duration){
+		$('#eventscategory_dstart, #eventscategory_dend').val(d.year + '-' + zPad(d.month) + '-' + zPad(d.day));
 	}
 	else {
-		$('#eventscategory_allday').attr('checked','checked').change();
-		$('#eventscategory_duration').val(0);
+		$('#eventscategory_dstart').val(d.year + '-' + zPad(d.month) + '-' + zPad(d.day));
+		$('#eventscategory_tstart').val(zPad(d.hour) + ':' + zPad(d.minute));
 	}
 	
+	var dtStart = parseISODate($('#eventscategory_dstart').val()+'T'+$('#eventscategory_tstart').val());
+	var dtEnd = new Date(dtStart.valueOf() + duration*1000);
+	
+	$('#eventscategory_dend').val(dtEnd.getFullYear() + '-' + zPad(dtEnd.getMonth()+1) + '-' + zPad(dtEnd.getDate()));
+	$('#eventscategory_tend').val(zPad(dtEnd.getHours()) + '-' + zPad(dtEnd.getMinutes()));
+	
+	//$(!duration ? '#eventscategory_dstart, #eventscategory_dend' : '#eventscategory_dstart').val(
+	//	d.year + '-' + zPad(d.month) + '-' + zPad(d.day)
+	//);
+	if(!duration)
+		$('#eventscategory_allday').attr('checked', 'checked').change();
+	else
+		$('#eventscategory_allday').removeAttr('checked').change();
+	$('#eventscategory_dstart, #eventscategory_dend, #eventscategory_tstart, #eventscategory_tend').change();
+}
+
+
+
+
+$(function(){
+	
+	var duration = parseInt($('#the-list tr td:has(input[value="_event_duration"]) + td > textarea').val(), 10);
+	$('#eventscategory_duration').val(duration ? duration : 0);
 	$('#eventscategory-fn_org').val(
 		$('#the-list tr td:has(input[value="_event_fn_org"]) + td > textarea').val());
 	$('#eventscategory-street-address').val(
@@ -85,6 +110,37 @@ $(function(){
 	$('#eventscategory-latitude').val(
 		$('#the-list tr td:has(input[value="_event_latitude"]) + td > textarea').val());
 	
+	//Hide or show the time stamps
+	$('#eventscategory_allday').change(function(){
+		if(this.checked){
+			$('#eventscategory_tstart, #eventscategory_tend').hide().each(function(){this.disabled = true;});
+			$('#eventscategory_duration').val(0);
+		}
+		else {
+			$('#eventscategory_tstart, #eventscategory_tend').show().each(function(){this.disabled = false;});
+			
+			var duration = parseInt($('#eventscategory_duration').val(), 10);
+			if(!duration)
+				duration = 3600;
+			
+			//eventscategory_tstart
+			var dtstart = parseISODate($('#eventscategory_dstart').val() + 'T' + $('#hh').val() + ':' + $('#mn').val());
+			var dtend = new Date(dtstart.valueOf() + (duration*1000));
+			
+			$('#eventscategory_tstart').val(zPad(dtstart.getHours()) + ':' + zPad(dtstart.getMinutes()));
+			$('#eventscategory_tend').val(zPad(dtend.getHours()) + ':' + zPad(dtend.getMinutes()));
+			$('#eventscategory_tstart, #eventscategory_tend').change();
+		}
+	});
+	
+	//Populate the event category fields
+	if(duration){
+		$('#eventscategory_allday').removeAttr('checked').change();
+	}
+	else {
+		$('#eventscategory_allday').attr('checked','checked').change();
+	}
+	
 	//Iterate over all of the category checkboxes and see if any event category checkboxes are selected
 	$('#categories-all input[type=checkbox]').change(function(){
 		var isChecked = false;
@@ -102,6 +158,7 @@ $(function(){
 		
 		//If an event category is checked, then hide the post timestamp and show the meta box
 		if(isChecked){
+			$('#ss').val("00");
 			$('#submitpost p.curtime').hide('slow');
 			$('#eventscategorydiv').show('slow');
 		}
@@ -112,50 +169,12 @@ $(function(){
 		}
 	});
 	
-	function highlight(el){
-		var el = $(el);
-		el.css('background-color', '#FFFBCC');
-		setTimeout(function(){
-			el.css('background-color', '');
-		}, 3000);
-	}
-	
-	
-	function parseTime(str){
-		return {
-			hour : parseInt(str.replace(/\D.+$/, ''), 10),
-			minute : /:/.test(str) ? parseInt(str.replace(/(^\d+:)|\D+/g, ''), 10) : 0,
-			isPM : /(\b|\d)pm\b|\bp\D*\bm/i.test(str)
-		}
-	}
-	
-	function getPostTimestamp(){
-		return {
-			month : parseInt($('#mm').val(), 10),
-			day   : parseInt($('#jj').val(), 10),
-			year  : parseInt($('#aa').val(), 10),
-			hour  : parseInt($('#hh').val(), 10),
-			minute: parseInt($('#mn').val(), 10)
-		};
-	}
-	
-	//
-	function populateEventDateWithTimestamp(isAllDay){
-		var d = getPostTimestamp();
-		$(isAllDay ? '#eventscategory_dstart, #eventscategory_dend' : '#eventscategory_dstart').val(
-			d.year + '-' + zPad(d.month) + '-' + zPad(d.day)
-		);
-		$('#eventscategory_dstart').change();
-		$('#eventscategory_dend').change();
-		if(isAllDay)
-			$('#eventscategory_allday').attr('checked', 'checked').change();
-	}
 	
 	//Populate Event details with post timestamp
-	if(!$('#eventscategory_dstart').val()){
+	//if(!$('#eventscategory_dstart').val()){
 		//console.warn(isAllDay)
-		populateEventDateWithTimestamp(!!duration); //TODO
-	}
+		populateEventDateWithTimestamp(duration); //TODO
+	//}
 	
 	//When the post timestamp is modified, we must make sure that we also update the corresponding event details, and visa-versa
 	//$('#mm, #jj, #aa, #hh, #mn').change(function(){
@@ -288,9 +307,7 @@ $(function(){
 			var dtend = parseISODate($('#eventscategory_dend').val() + 'T' + $('#eventscategory_tend').val());
 			
 			if(dtstart && dtend){
-				console.info([dtstart , dtend])
 				$('#eventscategory_duration').val(parseInt((dtend.valueOf() - dtstart.valueOf())/1000));
-				console.info($('#eventscategory_duration').val());
 			}
 			
 			
