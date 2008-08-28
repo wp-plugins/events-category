@@ -2,22 +2,22 @@
 
 
 function eventscategory_admin_init(){
-	$filename = basename($_SERVER['SCRIPT_FILENAME']);
+	$filename = basename(preg_replace('/\?.*/', '', $_SERVER['REQUEST_URI']));
 	if(is_admin() && ($_REQUEST['page'] == 'events-category-options' || $filename == 'post-new.php' || $filename == 'post.php')){
-		add_action('wp_head', 'eventscategory_add_admin_style');
+		#add_action('wp_head', 'eventscategory_add_admin_style');
 		wp_enqueue_script('events-category', get_option('siteurl') . '/' . PLUGINDIR . '/events-category/admin.js', array('jquery'));
 		wp_enqueue_style('events-category', get_option('siteurl') . '/' . PLUGINDIR . '/events-category/admin.css');
 	}
 }
 add_action('init', 'eventscategory_admin_init');
 
-function eventscategory_add_admin_style(){
-	#print '<!--';
-	#print_r($GLOBALS);
-	#print '-->';
-	#echo '<link rel="stylesheet" type="text/css" href="/' . PLUGINDIR . '/events-category/admin.css" />';
-}
-add_action('admin_head', 'eventscategory_add_admin_style');
+//function eventscategory_add_admin_style(){
+//	#print '<!--';
+//	#print_r($GLOBALS);
+//	#print '-->';
+//	#echo '<link rel="stylesheet" type="text/css" href="/' . PLUGINDIR . '/events-category/admin.css" />';
+//}
+//add_action('admin_head', 'eventscategory_add_admin_style');
 
 
 
@@ -29,7 +29,7 @@ function eventscategory_modify_menu(){
 		'events-category-options',
 		'eventscategory_options_page'
 	);
-	add_meta_box('eventscategorydiv', _('Event Details', 'events-category'), 'eventscategory_add_meta_box', 'post', 'normal', 'high');
+	add_meta_box('eventscategorydiv', __('Event Details', 'events-category'), 'eventscategory_add_meta_box', 'post', 'normal', 'high');
 }
 add_action('admin_menu', 'eventscategory_modify_menu');
 
