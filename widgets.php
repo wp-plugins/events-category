@@ -20,9 +20,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-
-#Including the year: M. j[, Y][, g][:i][a]{[ – ][M. ][j, ][Y, ]g[:i]a} T
-
 $eventscategory_default_widget_date_format = __('M. jS[, g][:i][a]{[ - ][M. ][j][S,] g[:i]a} T', 'events-category');
 $eventscategory_default_widget_address_format = __("[%street-address%]\n[%extended-address%]\n[%locality%][, %region%][ %postal-code%]\n[%country-name%]", 'events-category');
 add_option('eventscategory_widget_upcoming', array(
@@ -35,18 +32,10 @@ add_option('eventscategory_widget_upcoming', array(
 		'address_format' => $eventscategory_default_widget_address_format,
 		'selected_categories' => array()
 	)
-	//* label
-    //* post-office-box
-    //* extended-address
-    //* street-address
-    //* locality
-    //* region
-    //* postal-code
-    //* country-name 
 ));
 
 function eventscategory_widget_upcoming($args, $number = 1) { 
-    global $wpdb, $post, $wp_query;
+    global $wpdb, $post, $wp_query, $wp_rewrite, $eventscategory_feed_names, $eventscategory_feed_mime_types;
 	extract($args);
 	$options = get_option('eventscategory_widget_upcoming');
 
@@ -55,8 +44,10 @@ function eventscategory_widget_upcoming($args, $number = 1) {
 		showposts => $options[$number]['show_posts']
 	);
 	#print_r($options[$number]);
-	if(!empty($options[$number]['selected_categories']))
+	#print_r($options[$number]['selected_categories']);
+	if(!empty($options[$number]['selected_categories'])){
 		$query_vars['category__in'] = $options[$number]['selected_categories'];
+	}
 	else
 		$query_vars['cat'] = get_option('eventscategory_ID');
 	
@@ -68,20 +59,21 @@ function eventscategory_widget_upcoming($args, $number = 1) {
 	$old_post = (object)$post;
 	query_posts($query_vars);
 	if(have_posts()){
-		print $before_widget; 
-		print $before_title;
+		echo $before_widget; 
+		echo $before_title;
 		
-		print '<a href="' . get_category_link(get_option('eventscategory_ID')) . '">';
-		print htmlspecialchars($options[$number]['title']);
-		print  '</a>' . $after_title;
+		#echo '<a href="' . get_category_link(get_option('eventscategory_ID')) . '">';
+		echo htmlspecialchars($options[$number]['title']);
+		#echo  '</a>';
+		echo $after_title;
 		
-		print '<ol>';
+		echo '<ol>';
 		#while($query->have_posts()){ $query->the_post();
 		while(have_posts()){ the_post();
-			print '<li class="vevent">';
-			print '<a href="' . get_permalink() . '" rel="bookmark" class="summary">';
+			echo '<li class="vevent">';
+			echo '<a href="' . get_permalink() . '" rel="bookmark" class="summary">';
 			the_title();
-			print '</a>';
+			echo '</a>';
 			
 			echo "<div class='datetime'>";
 			eventscategory_the_time($options[$number]['date_format']);
@@ -90,31 +82,53 @@ function eventscategory_widget_upcoming($args, $number = 1) {
 			#Display the address
 			if($options[$number]['display_location'])
 				eventscategory_the_location('', '', $options[$number]['address_format']);
-			print '</li>';
+			echo '</li>';
 		}
-		print '</ol>';
-		if(empty($query_vars['category__in'])){
-			print '<div class="feeds">';
+		echo '</ol>';
+		
+		$queried_cats = array();
+		if(!empty($query_vars['category__in']))
+			$queried_cats = $query_vars['category__in'];
+		else
+			$queried_cats = array(get_option('eventscategory_ID'));
+		
+		if(false&&count($queried_cats) == 1){ #TODO
+			echo '<div class="feeds">';
 			
-			#TODO: It may be that a different feed slug is used than 'feed'
-			global $wp_rewrite;
-			$catLink = get_category_link(get_option('eventscategory_ID'));
-			if($wp_rewrite->get_category_permastruct()){
-				$rssParam = 'feed/';
-				$icalParam = 'feed/ical/';
-			}
-			else {
-				$rssParam = '&feed=rss2';
-				$icalParam = '&feed=ical';
+			if ($catPermaStruct = $wp_rewrite->get_category_permastruct()) {
+				$link = get_category_link($queried_cats[0]);
+				$link = trailingslashit($link);
+			} else {
+				$link = get_option('home') . '?cat=' . $queried_cats[0] . '&amp;feed=';
 			}
 			
-			print '<a class="rss"  rel="feed" type="application/rss+xml" title="' . htmlspecialchars(__('Subscribe to Events RSS feed', 'events-category')) . '" href="' . $catLink . $rssParam . '"><span>RSS</span></a> ';
-			print '<a class="ical" rel="feed" type="text/calendar" title="' . htmlspecialchars(__('Subscribe to Events iCalendar feed', 'events-category')) . '" href="' . $catLink . $icalParam . '"><span>iCal</span></a>';
-			print '</div>';
+			#Get all feed types
+			$feeds = (array)$wp_rewrite->feeds;
+			array_push($feeds, 'ical');
+			array_unique($feeds);
+			
+			#Write out a link for each of the feed types
+			foreach($feeds as $feed){
+				if($feed == 'feed')
+					continue; #do this???
+				
+				echo "\t\t<a class='$feed feed' rel='feed'";
+				if(!empty($eventscategory_feed_mime_types[$feed]))
+					echo " type=\"$eventscategory_feed_mime_types[$feed]\" ";
+				echo "title=\"" . __(sprintf('Subscribe to %s Feed', (empty($eventscategory_feed_names[$feed]) ? $feed : $eventscategory_feed_names[$feed])), 'events-category') . "\" href=\"";
+				if($catPermaStruct)
+					echo apply_filters('category_feed_link', $link . user_trailingslashit('feed/' . $feed, 'feed'));
+				else
+					echo apply_filters('category_feed_link', $link . $feed);
+				echo "\"><span class='text'>";
+				echo (empty($eventscategory_feed_names[$feed]) ? $feed : $eventscategory_feed_names[$feed]);
+				echo "</span></a> ";
+			}
+			echo '</div>';
 		}
-		print '<div class="more"><a href="' . get_category_link(get_option('eventscategory_ID')) . '">' . __("More &raquo;", 'events-category') . '</a></div>';
+		echo '<nav class="more"><a href="' . get_category_link(count($queried_cats) == 1 ? $queried_cats[0] : get_option('eventscategory_ID')) . '">' . __("More &raquo;", 'events-category') . '</a></nav>';
 		#previous_posts_link('Newer Entries &raquo;');
-		print $after_widget; 
+		echo $after_widget; 
 	}
 	#eventscategory_unregister_query();
 	$wp_query = $old_wp_query;
@@ -153,7 +167,7 @@ function eventscategory_widget_upcoming_control($number){
 	echo "<p><label>" . __('Title: ', 'events-category') . "<input type='text' id='eventscategory-widget-title$number' name='eventscategory-widget-title$number' value=\"$title\" required='required' /></label></p>";
 	echo "<p><label>" . __('Upcoming events to show: ', 'events-category') . "<input type='number' id='eventscategory-widget-show_posts$number' name='eventscategory-widget-show_posts$number' value=\"$show_posts\" size=\"3\" required='required' min='1' /></label></p>";
 	echo "<p><label>" . __('Date format: ', 'events-category') . " <span style='color:gray; font-size:smaller;'>" . __('(using hybrid PHP date format)', 'events-category');
-	echo "     <a href='javascript:void(0);' onclick='document.getElementById(\"eventscategory-widget-date_format$number\").value = " . json_encode($eventscategory_default_widget_date_format) . "'>" . __('reset', 'events-category') ."</a></span>";
+	echo "     <a href='javascript:void(0);' onclick='document.getElementById(\"eventscategory-widget-date_format$number\").value = \"" . addslashes($eventscategory_default_widget_date_format) . "\"'>" . __('reset', 'events-category') ."</a></span>";
 	echo "<br /><input type='text' id='eventscategory-widget-date_format$number' name='eventscategory-widget-date_format$number' value=\"$date_format\" required='required' style='width:100%' /></label></p>";
 	
 	echo "<p><label><input type='checkbox' id='eventscategory-widget-show-all-subcats$number' " . ($display_location ? " checked='checked' " : '') . "  onclick=\"";
@@ -187,13 +201,13 @@ function eventscategory_widget_upcoming_control($number){
 	$r['include_last_update_time'] = $r['show_last_update'];
 	$categories = get_categories($r);
 	$r['selected'] = $newoptions[$number]['selected_categories'];
-	$walter = new EventsCategory_Walker_CategoryDropdown();
-	echo "<select id='eventscategory-widget-selected_categories$number' name='eventscategory-widget-selected_categories{$number}[]' multiple='multiple' size='4' onchange=\"";
+	$walker = new EventsCategory_Walker_CategoryDropdown();
+	echo "<select id='eventscategory-widget-selected_categories$number' name='eventscategory-widget-selected_categories{$number}[]' multiple='multiple' style='height:9em' onchange=\"";
 	echo   "var selected = false; for(var i = 0; i < this.length; i++){ if(this.options[i].selected){ selected = true; break; }} ";
 	echo   "if(!selected){ document.getElementById('eventscategory-widget-show-all-subcats$number').checked = true; this.parentNode.parentNode.style.display = 'none'; }";
 	echo   "else { document.getElementById('eventscategory-widget-show-all-subcats$number').checked = false; this.parentNode.parentNode.style.display = 'block'; }"; 
 	echo "\">\n";
-	echo $walter->walk($categories, 0, $r);
+	echo $walker->walk($categories, 0, $r);
 	echo "</select>";
 	echo "</label></p>";
 	echo "<script type='text/javascript'>document.getElementById('eventscategory-widget-selected_categories$number').onchange()</script>";
@@ -204,7 +218,7 @@ function eventscategory_widget_upcoming_control($number){
 	
 	echo "<p id='eventscategory-widget-p-address_format$number' " . (!$display_location ? " style='display:none' " : '') . ">";
 	echo "<label>" . __('Address format: ', 'events-category');
-	echo "<span style='font-size:smaller'><a href='javascript:void(0);' onclick='document.getElementById(\"eventscategory-widget-address_format$number\").value = " . json_encode($eventscategory_default_widget_address_format) . "'>" . __('reset', 'events-category') ."</a></span>";
+	echo "<span style='font-size:smaller'><a href='javascript:void(0);' onclick='document.getElementById(\"eventscategory-widget-address_format$number\").value = \"" . addslashes($eventscategory_default_widget_address_format) . "\"'>" . __('reset', 'events-category') ."</a></span>";
 	
 	echo "<br /><textarea id='eventscategory-widget-address_format$number' name='eventscategory-widget-address_format$number' rows='4'  " . (!$display_location ? " disabled='disabled' " : '') . " style='width:100%'>$address_format</textarea></label></p>";
 	echo "<input type='hidden' id='eventscategory-widget-submit$number' name='eventscategory-widget-submit$number' value='1' />";
@@ -281,6 +295,38 @@ function eventscategory_plugins_loaded(){
 	eventscategory_widget_upcoming_register();
 }
 add_action('plugins_loaded', 'eventscategory_plugins_loaded');
+
+
+
+
+class EventsCategory_Walker_CategoryDropdown extends Walker {
+	var $tree_type = 'category';
+	var $db_fields = array ('parent' => 'parent', 'id' => 'term_id'); //TODO: decouple this
+
+	function start_el($output, $category, $depth, $args) {
+		if(!is_events_category($category->cat_ID))
+			return $output;
+		
+		$pad = str_repeat('&nbsp;', $depth * 3);
+
+		$cat_name = apply_filters('list_cats', $category->name, $category);
+		$output .= "\t<option value=\"".$category->term_id."\"";
+		if ( in_array($category->term_id, $args['selected']) )
+			$output .= ' selected="selected"';
+		$output .= '>';
+		$output .= $pad.$cat_name;
+		if ( $args['show_count'] )
+			$output .= '&nbsp;&nbsp;('. $category->count .')';
+		if ( $args['show_last_update'] ) {
+			$format = 'Y-m-d';
+			$output .= '&nbsp;&nbsp;' . gmdate($format, $category->last_update_timestamp);
+		}
+		$output .= "</option>\n";
+
+		return $output;
+	}
+}
+
 
 
 

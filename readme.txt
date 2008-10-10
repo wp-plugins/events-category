@@ -1,19 +1,19 @@
 === Events Category ===
 Contributors: westonruter
 Tags: events, calendar, posts
-Tested up to: 2.3.2
+Tested up to: 2.6.2
 Stable tag: trunk
 Donate link: http://weston.ruter.net/donate/
 
 Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts
 to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp
-is used as the time stamp. Upcoming events widget included; includes iCal feed. HTML output contains hCalendar, hCard, geo, and adr
-microformats.
+is used as the time stamp. Upcoming events widget included. HTML output contains hCalendar, hCard, geo, and adr microformats.
 
 == Description ==
 
-*NOTE: This documentation is very rough, and this plugin is alpha quality. Please donate to help me continue
+*Please donate to help me continue
 improving this plugin if you see real potential or find great usefulness in it.*
+**This plugin does not support recurring events!**
 
 Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts
 to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp
@@ -23,7 +23,6 @@ microformats.
 = Quick Start =
 
 1. Activate the plugin
-1. Customize your single.php and category.php templates similarly to shown below
 1. Create new posts in the "Events" category
 1. Add the Upcoming Events widget to the sidebar
 
@@ -62,14 +61,15 @@ otherwise all of your future posts will fill the first pages of your results.
 
 = Creating a new event =
 
-Creating a new event is just creating a new post and assigning it to the "Events" category. You may rename this category to something else after
+Creating a new event is just creating a new post and assigning it to the "Events" category (or a subcategory under it). You may rename this category to something else after
 initially activiating the plugin. Once you select the "Events" category for the post, additional controls will appear asking for the necessary
 information to create an event, including the start date-time and end-date time, and the location.
 
 = Upcoming Events Widget =
 
-Multiple upcoming events widgets may be added, and each one may be customized to show only certain categories of events,
+Multiple upcoming events widgets may be added to your sidebar(s), and each one may be customized to show only certain categories of events,
 to show a specified number of posts, to include the location, and to customize the date-time format and the address format.
+The feed links will appear if you are showing only one category.
 
 = Template Tags and Data Formatting =
 
@@ -80,9 +80,10 @@ The following template tags are introduced:
 * <code>eventscategory_get_the_location($before = '', $after = '', $adr_format = '')</code> -- if no location is provided, nothing is returned
 * <code>eventscategory_the_location($before = '', $after = '', $adr_format = '')</code> -- echos the preceding function
 
-The HTML output from these functions is tagged using hCalendar, hCard, geo, and adr microformats.
-
-The <code>$dt_format</code> (date-time format) is a hybrid version of the format accepted by PHP's date() function:
+The <code>$dt_format</code> (date-time format) is a hybrid version of the format accepted by PHP's date() function.
+Format characters which are enclosed in brackets are removed (along with other characters) if their presence adds no new information.
+See the following example date format; the event end date-time is enclosed in curly brackets, in which the first square-bracketted string
+is the separator between the two date-times:
 
 	F jS, [Y @] g[:i][a]{[ - ][F ][j][S, ][Y,] g[:i]a} T
 
@@ -90,87 +91,28 @@ The <code>$adr_format</code> (address format) is a string incorporating adr micr
 
 	[%street-address%]\n[%extended-address%]\n[%locality%][, %region%][ %postal-code%]\n[%country-name%]
 
-= Sample category.php Template =
+The HTML output from these functions is tagged using hCalendar, hCard, geo, and adr microformats.
+The default format strings used by these functions can be modified via the Upcoming Events widget configuration,
+or via the main Events Category options page; the formats modified in these sections are independent of each other,
+so you can use a more concise date format in the widget, but have a more verbose format when calling
+<code>eventscategory_the_time()</code> elsewhere.
 
+= Displaying Event List: Sample category.php Template =
 
-	<?php if (have_posts()) : ?>
-		<h2>
-			<?php
-			$category = get_category(get_query_var('cat'));
-			$catname = $category->name;
-				echo $catname;
-			
-			if(is_day()){
-				echo ' on ';
-				echo get_query_var('day') . ' ';
-				echo $monthNames[get_query_var('monthnum')-1] . ', ';
-				echo get_query_var('year');
-			}
-			elseif(is_month()){
-				echo ' in ';
-				echo $monthNames[get_query_var('monthnum')-1] . ' ';
-				echo get_query_var('year');
-			}
-			elseif(is_year()){
-				echo ' in ';
-				echo get_query_var('year');
-			}
-			elseif(get_query_var('eventscategory-position') > 0){
-				echo 'Further Upcoming ' . $catname;
-			}
-			elseif(get_query_var('eventscategory-position') < 0){
-				echo 'Past ' . $catname;
-			}
-			else {
-				echo 'Upcoming ' . $catname;
-			}
-			?>
-		</h2>
+You can determine if the user is currently seeing future posts if the query variable <code>eventscategory-position</code> is less than zero.
+If it is equal to zero then they are in the present time, meaning the next upcoming events are shown; if it greater than zero, then
+some page of future events is being viewed. Please locate the file <code>example-templates/category.php</code> in the plugin.
 
-		<!-- The Loop goes here -->
-	
-	<?php elseif(is_events_category()): ?>
-		<?php if(get_query_var('eventscategory-position') >= 0): ?>
-			<h2>No further future events</h2>
-			<?php next_posts_link('&laquo; Older Events') ?>
-			<?php //previous_posts_link('Newer Entries &raquo;') ?>
-		<?php else: ?>
-			<h2>No further past events</h2>
-			<?php previous_posts_link('Future Entries &raquo;') ?>
-			<?php //next_posts_link('&laquo; Older Entries') ?>
-		<?php endif; ?>
-	<?php else : ?>
-	
-		<h2 class="pagetitle">Not Found</h2>
-		<?php include (TEMPLATEPATH . '/searchform.php'); ?>
-	
-	<?php endif; ?>
+= Displaying an Event: Sample single.php Template =
 
-
-= Sample single.php Template =
-
-
-	<?php
-	$isEventsCat = is_events_category(get_the_category());
-	?>
-	<div class="post post-<?php the_ID(); if($isEventsCat) echo ' vevent'; ?>">
-		<h2><a class="<?php if($isEventsCat) echo ' summary' ?>" href="<?php echo get_permalink() ?>" rel="bookmark" title="Permanent Link: <?php the_title_attribute(); ?>"><?php the_title(); ?></a></h2>
-		<?php
-		if($isEventsCat): ?>
-			<p>
-				<strong>When:</strong> <?php eventscategory_the_time() ?>
-			</p>
-			<?php eventscategory_the_location('<strong>Where:</strong>') ?>
-		<?php endif; ?>
-		<div class="entry">
-			<div class=" <?php if($isEventsCat) echo ' description' ?>">
-			<?php the_content('<p class="serif">Read the rest of this entry &raquo;</p>'); ?>
-			</div>
-		</div>
-	</div>
+The following example includes hCalendar and other microformats if the post being viewed is an event.
+Please locate the file <code>example-templates/single.php</code> in the plugin.
 
 
 = Changelog =
+*2008-10-10: 0.4*
+* Large re-write and re-development for WordPress 2.6
+
 *2008-02-13: 0.1 (beta)*
 
 * <code>is_events_category()</code> now accepts arrays of category IDs or category objects so that <code>is_events_category(get_the_category())</code> can be used in the single.php template.
@@ -183,17 +125,34 @@ The <code>$adr_format</code> (address format) is a string incorporating adr micr
 * Initial version released
 
 = Todo =
-1. We can intercept the_content and the_excerpt and perhaps the_title filters, to prepend the event info.
-1. Filter the_time to include the beginning and end dates, that is, the results from eventscategory_the_time... and include the format specified
 1. Seconds should be forbidden in the format, because if the minutes are hidden, the seconds will look like minutes? Or we can only remove the [i] if the [s] is 0
-1. Note: hitting tab from title should go to the start date
+1. Tabbing among the events category tabs needs to be resolved (hitting tab from title should go to the start date)
 1. Javascript validation of data needed, including ensuring that second date and time should maintain diff from first when the first is modified
 1. ??Category count is broken in Manage Categories page as well as Posts Manage page: Category post count incorrect when in admin managing posts
-1. Daylight savings time is messing with using duration as the indicator for the end time.
-1. We should handle the changing of the times of events by keeping track of the history of post_dates in multiple postmeta.event-dtprevious entries
-1. Issue: when displaying the timezone, we need to adjust it according to the gmt_offset
+1. Timezones and daylight savings time
+	1. Setting time at the beginning and end of daylight savings time is buggy.
+	1. Start and end date-time microformats not currently working with daylight savings time
+	1. Should we automatically change gmt_offset when DST starts or ends? We could just do set_option(gmt_offset, date('Z')/3600) after 
+	1. We should always use gmt_post_date - post_date to get the gmt_offset; when saving a post in daylight savings, we'll add/subtract subtract one from gmt_offset
+	1. Should we be able to specify the timezone that the user is in? with putenv(TZ=) or date_default_timezone_set()
+	1. Verify conversions: from browser form to PHP handler to database to the_time and finally back to the browser form again; verify consistency and validity for timezones and DST
+	1. SOLUTION: Allow user to set the offset each time, and upon save_post, change the gmt_post_date to correspond to the user-defined offset
+	1. save event-gmt-offset in postmeta
+	1. Present a list of all timezones/offsets for which the user's timezone is automatically selected
+	1. Client-logic determines whether the start or end-date are DST: problem: how will server know when DST? If we have
+	   the start time the gmt_date (start - gmt-offset), how do we determine if start time + duration is DST or not DST?
+1. Add external iCal feeds to display
+	1. Be able to assign all posts in a feed to a category
+	1. Note that we need to store in postmeta the post-event's source feed and unique identifier
+	1. Do iCal feeds generally keep all feeds from all time? If not, then how do we know when an event was deleted or just stopped from being shown?
+	1. Disable comments for imported feeds?
+	1. Disable editing/deleting of imported events
+	1. Who should be assigned as the author of these imported posts? By default: admin; but provide drop down to choose
 1. Add 'category' field to microformat... <span class="category"><?php the_category() ?></span>
-1. Add support for keeping track of attendees; RSVP status may be assigned by registered users via the comments form: http://microformats.org/wiki/hcalendar-brainstorming
-1. Add configuration page to modify the options
-1. Once recurring events are supported, we'll have to modify the post-lists in Manage Posts to make them more navigable
-
+1. **Significant feature:** Recurring Events
+	1. Once recurring events are supported, we'll have to modify the post-lists in Manage Posts to make them more navigable
+1. ??Option to filter the_time to include the beginning and end dates, that is, the results from eventscategory_the_time... and include the format specified
+1. Localize in Japanese
+1. **Significant feature:** Event Registration
+	1. Add support for keeping track of attendees; RSVP status may be assigned by registered users via the comments form: http://microformats.org/wiki/hcalendar-brainstorming
+	1. iCal feed should include this registrant data
