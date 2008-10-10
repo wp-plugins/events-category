@@ -3,7 +3,7 @@
 Plugin Name: Events Category
 Plugin URI: http://wordpress.org/extend/plugins/events-category/
 Description: Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp is used as the event date.
-Version: 0.3
+Version: 0.4
 Author: Weston Ruter
 Author URI: http://weston.ruter.net/
 Copyright: 2008, Weston Ruter
@@ -468,7 +468,7 @@ add_filter('the_posts', 'eventscategory_the_posts');
 #   the category template to show up.
 function eventscategory_template_redirect(){
 	global $wp_query;
-	if(is_events_category() && is_404()){
+	if(!is_feed() && is_404() && is_events_category()){
 		#Allow the next_posts_link to appear
 		if($wp_query->found_posts > 0)
 			$wp_query->max_num_pages++;
@@ -568,8 +568,8 @@ function eventscategory_clean_url($url, $original_url, $context){
 add_filter('clean_url', 'eventscategory_clean_url', 10, 3);
 
 
-#require(dirname(__FILE__) . '/widgets.php'); #TODO
-#require(dirname(__FILE__) . '/feeds.php'); #TODO
+require(dirname(__FILE__) . '/widgets.php'); #TODO
+require(dirname(__FILE__) . '/feeds.php'); #TODO
 require(dirname(__FILE__) . '/admin.php'); #TODO
 require(dirname(__FILE__) . '/template-tags.php');
 

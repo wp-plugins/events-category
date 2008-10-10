@@ -1,5 +1,12 @@
 (function(){
 
+//if(!window.console){
+//	var console = {};
+//	console.info = function(){};
+//	console.warn = function(){};
+//	console.error = function(){};
+//}
+
 var $ = jQuery;
 
 //global eventscategory_id, eventscategory_all_id_lookup;
@@ -30,7 +37,7 @@ function parseISODate(str){
 }
 
 function highlight(el){
-	var el = $(el);
+	el = $(el);
 	el.css('background-color', '#FFFBCC');
 	setTimeout(function(){
 		el.css('background-color', '');
@@ -59,18 +66,19 @@ function populateEventDateWithTimestamp(duration){
 	var d = getPostTimestamp();
 	
 	if(!duration){
+		//console.info(d.year + '-' + zPad(d.month) + '-' + zPad(d.day))
 		$('#eventscategory_dstart, #eventscategory_dend').val(d.year + '-' + zPad(d.month) + '-' + zPad(d.day));
 	}
 	else {
 		$('#eventscategory_dstart').val(d.year + '-' + zPad(d.month) + '-' + zPad(d.day));
 		$('#eventscategory_tstart').val(zPad(d.hour) + ':' + zPad(d.minute));
-	}
 	
 	var dtStart = parseISODate($('#eventscategory_dstart').val()+'T'+$('#eventscategory_tstart').val());
 	var dtEnd = new Date(dtStart.valueOf() + duration*1000);
 	
 	$('#eventscategory_dend').val(dtEnd.getFullYear() + '-' + zPad(dtEnd.getMonth()+1) + '-' + zPad(dtEnd.getDate()));
 	$('#eventscategory_tend').val(zPad(dtEnd.getHours()) + '-' + zPad(dtEnd.getMinutes()));
+	}
 	
 	//$(!duration ? '#eventscategory_dstart, #eventscategory_dend' : '#eventscategory_dstart').val(
 	//	d.year + '-' + zPad(d.month) + '-' + zPad(d.day)
@@ -141,6 +149,7 @@ $(function(){
 		$('#eventscategory_allday').attr('checked','checked').change();
 	}
 	
+	$('#eventscategorydiv').hide();
 	//Iterate over all of the category checkboxes and see if any event category checkboxes are selected
 	$('#categories-all input[type=checkbox]').change(function(){
 		var isChecked = false;
@@ -148,10 +157,13 @@ $(function(){
 		//See if any of the pre-existingly known Event categories are checked
 		$('#categories-all input[type=checkbox][checked]').each(function(){
 			var id = this.id.replace(/\D+/g, '');
-			if(eventscategory_all_id_lookup[id])
+			if(eventscategory_all_id_lookup[id]){
 				isChecked = true;
-			return isChecked;
+				return false;
+			}
+			return true;
 		});
+		
 		//See if any sub-categories under the main event category are checked
 		if(!isChecked)
 			isChecked = !!$('#categories-all li[id="category-' + eventscategory_id + '"] input[type=checkbox][checked]').length;
@@ -167,7 +179,7 @@ $(function(){
 			$('#submitpost p.curtime').show('slow');
 			$('#eventscategorydiv').hide('slow');
 		}
-	});
+	}).change();
 	
 	
 	//Populate Event details with post timestamp

@@ -44,8 +44,10 @@ function eventscategory_widget_upcoming($args, $number = 1) {
 		showposts => $options[$number]['show_posts']
 	);
 	#print_r($options[$number]);
-	if(!empty($options[$number]['selected_categories']))
+	#print_r($options[$number]['selected_categories']);
+	if(!empty($options[$number]['selected_categories'])){
 		$query_vars['category__in'] = $options[$number]['selected_categories'];
+	}
 	else
 		$query_vars['cat'] = get_option('eventscategory_ID');
 	
@@ -90,7 +92,7 @@ function eventscategory_widget_upcoming($args, $number = 1) {
 		else
 			$queried_cats = array(get_option('eventscategory_ID'));
 		
-		if(count($queried_cats) == 1){
+		if(false&&count($queried_cats) == 1){ #TODO
 			echo '<div class="feeds">';
 			
 			if ($catPermaStruct = $wp_rewrite->get_category_permastruct()) {
@@ -124,7 +126,7 @@ function eventscategory_widget_upcoming($args, $number = 1) {
 			}
 			echo '</div>';
 		}
-		echo '<div class="more"><a href="' . get_category_link(get_option('eventscategory_ID')) . '">' . __("More &raquo;", 'events-category') . '</a></div>';
+		echo '<nav class="more"><a href="' . get_category_link(count($queried_cats) == 1 ? $queried_cats[0] : get_option('eventscategory_ID')) . '">' . __("More &raquo;", 'events-category') . '</a></nav>';
 		#previous_posts_link('Newer Entries &raquo;');
 		echo $after_widget; 
 	}
@@ -200,7 +202,7 @@ function eventscategory_widget_upcoming_control($number){
 	$categories = get_categories($r);
 	$r['selected'] = $newoptions[$number]['selected_categories'];
 	$walker = new EventsCategory_Walker_CategoryDropdown();
-	echo "<select id='eventscategory-widget-selected_categories$number' name='eventscategory-widget-selected_categories{$number}[]' multiple='multiple' size='4' onchange=\"";
+	echo "<select id='eventscategory-widget-selected_categories$number' name='eventscategory-widget-selected_categories{$number}[]' multiple='multiple' style='height:9em' onchange=\"";
 	echo   "var selected = false; for(var i = 0; i < this.length; i++){ if(this.options[i].selected){ selected = true; break; }} ";
 	echo   "if(!selected){ document.getElementById('eventscategory-widget-show-all-subcats$number').checked = true; this.parentNode.parentNode.style.display = 'none'; }";
 	echo   "else { document.getElementById('eventscategory-widget-show-all-subcats$number').checked = false; this.parentNode.parentNode.style.display = 'block'; }"; 

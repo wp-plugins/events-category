@@ -103,7 +103,7 @@ function eventscategory_head_add_feeds(){
 	}
 	echo "\n";
 }
-add_action('wp_head', 'eventscategory_head_add_feeds');
+#add_action('wp_head', 'eventscategory_head_add_feeds'); #This should only be done if they enable an option
 
 
 #http://tools.ietf.org/html/draft-royer-calsch-xcal-03

@@ -1,21 +1,19 @@
 === Events Category ===
 Contributors: westonruter
 Tags: events, calendar, posts
-Tested up to: 2.3.2
+Tested up to: 2.6.2
 Stable tag: trunk
 Donate link: http://weston.ruter.net/donate/
 
 Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts
 to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp
-is used as the time stamp. Upcoming events widget included; includes iCal feed. HTML output contains hCalendar, hCard, geo, and adr
-microformats.
+is used as the time stamp. Upcoming events widget included. HTML output contains hCalendar, hCard, geo, and adr microformats.
 
 == Description ==
 
 *Please donate to help me continue
 improving this plugin if you see real potential or find great usefulness in it.*
-**A couple of features, namely recurring events and event registration, require a lot
-of effort to engineer, and I need support to complete them. Thanks!**
+**This plugin does not support recurring events!**
 
 Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts
 to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp
@@ -27,7 +25,6 @@ microformats.
 1. Activate the plugin
 1. Create new posts in the "Events" category
 1. Add the Upcoming Events widget to the sidebar
-1. *Recommended:* install [old_post_date](http://wordpress.org/extend/plugins/old-post-date/) plugin
 
 = How it works =
 
@@ -64,7 +61,7 @@ otherwise all of your future posts will fill the first pages of your results.
 
 = Creating a new event =
 
-Creating a new event is just creating a new post and assigning it to the "Events" category. You may rename this category to something else after
+Creating a new event is just creating a new post and assigning it to the "Events" category (or a subcategory under it). You may rename this category to something else after
 initially activiating the plugin. Once you select the "Events" category for the post, additional controls will appear asking for the necessary
 information to create an event, including the start date-time and end-date time, and the location.
 
@@ -73,56 +70,6 @@ information to create an event, including the start date-time and end-date time,
 Multiple upcoming events widgets may be added to your sidebar(s), and each one may be customized to show only certain categories of events,
 to show a specified number of posts, to include the location, and to customize the date-time format and the address format.
 The feed links will appear if you are showing only one category.
-
-To turn the feed links into icons, put something like the following into your theme's style.css:
-
-	.eventscategory_widget_upcoming {
-		position:relative;
-	}
-	.eventscategory_widget_upcoming .feeds {
-		position:absolute;
-		top:0;
-		right:0;
-		width:60px; /*make this bigger if there are more than 2 icons */
-	}
-	
-	.eventscategory_widget_upcoming .feeds .ical,
-	.eventscategory_widget_upcoming .feeds .rss2 {
-		float:right;
-		width:16px;
-		height:16px;
-		background-repeat:no-repeat;
-		margin:5px;
-	}
-	
-	/* Following two rules are for MSIE <= 6; they could be placed in a separate CSS file loaded in MSIE by conditional comments */
-	.eventscategory_widget_upcoming .feeds .ical {
-		background-image:none;
-		filter:progid:DXImageTransform.Microsoft.AlphaImageLoader(src='/wp-content/plugins/events-category/images/ical.png', sizingMethod='scale');
-	}
-	.eventscategory_widget_upcoming .feeds .rss2 {
-		background-image:none;
-		filter:progid:DXImageTransform.Microsoft.AlphaImageLoader(src='/wp-content/plugins/events-category/images/ical.png', sizingMethod='scale');
-	}
-	
-	.eventscategory_widget_upcoming .feeds > .ical {
-		background-image:url(../../plugins/events-category/images/ical.png);
-	}
-	.eventscategory_widget_upcoming .feeds > .rss2 {
-		background-image:url(../../plugins/events-category/images/feed.png);
-	}
-	
-	/* Hide the text content of the feed links since we have a background image */
-	.eventscategory_widget_upcoming .feeds .ical .text,
-	.eventscategory_widget_upcoming .feeds .rss2 .text {
-		display:none;
-	}
-	/* Hide all of the feed links you don't care about */
-	.eventscategory_widget_upcoming .feeds .rss,
-	.eventscategory_widget_upcoming .feeds .atom,
-	.eventscategory_widget_upcoming .feeds .rdf {
-		display:none;
-	}
 
 = Template Tags and Data Formatting =
 
@@ -150,131 +97,21 @@ or via the main Events Category options page; the formats modified in these sect
 so you can use a more concise date format in the widget, but have a more verbose format when calling
 <code>eventscategory_the_time()</code> elsewhere.
 
-Included in the distribution is a JavaScript file "addGoogleMapsLinks.js"; if this is included, it
-will insert links to view locations on Google Maps. You can include this file in your header.php file with something
-like this:
-
-	<script type="text/javascript" src="<?php bloginfo('siteurl'); echo '/' . PLUGINDIR; ?>/events-category/addGoogleMapsLinks.js"></script>
-
-
 = Displaying Event List: Sample category.php Template =
 
 You can determine if the user is currently seeing future posts if the query variable <code>eventscategory-position</code> is less than zero.
 If it is equal to zero then they are in the present time, meaning the next upcoming events are shown; if it greater than zero, then
-some page of future events is being viewed. You may construct your category template to look something like as follows:
-
-	<?php $isEventsCat = function_exists('is_events_category') && is_events_category(); ?>
-	<?php if (have_posts()) : ?>
-		<h2>
-			<?php
-			$category = get_category(get_query_var('cat'));
-			$monthNames = array('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
-			if(is_day()){
-				echo $category->name . ' on ';
-				echo get_query_var('day') . ' ';
-				echo $monthNames[get_query_var('monthnum')-1] . ', ';
-				echo get_query_var('year');
-			}
-			elseif(is_month()){
-				echo $category->name . ' in ';
-				echo $monthNames[get_query_var('monthnum')-1] . ' ';
-				echo get_query_var('year');
-			}
-			elseif(is_year()){
-				echo $category->name . ' in ';
-				echo get_query_var('year');
-			}
-			elseif($isEventsCat){
-				if(get_query_var('eventscategory-position') > 0)
-					echo 'Further Upcoming ' . $category->name;
-				elseif(get_query_var('eventscategory-position') < 0)
-					echo 'Past ' . $category->name;
-				else
-					echo 'Upcoming ' . $category->name;
-			}
-			else {
-				echo $category->name;
-			}
-			?>
-		</h2>
-
-		<div class="navigation">
-			<div class="newer"><?php next_posts_link('&laquo; Older')  ?></div>
-			<div class="older"><?php previous_posts_link('Newer &raquo;') ?></div>
-		</div>
-		<?php while (have_posts()) : the_post(); ?>
-			<div class="post">
-			
-			<!-- Put post template tags here, i.e. from the single.php example below -->
-			
-			</div>
-
-		<?php endwhile; ?>
-	
-	<?php elseif($isEventsCat): ?>
-		<?php if(get_query_var('eventscategory-position') >= 0): ?>
-			<h2>No further future events</h2>
-			<?php next_posts_link('&laquo; Older Events') ?>
-		<?php else: ?>
-			<h2>No further past events</h2>
-			<?php previous_posts_link('Future Entries &raquo;') ?>
-		<?php endif; ?>
-	<?php else : ?>
-	
-		<h2 class="pagetitle">Not Found</h2>
-		<?php include (TEMPLATEPATH . '/searchform.php'); ?>
-	
-	<?php endif; ?>
-
+some page of future events is being viewed. Please locate the file <code>example-templates/category.php</code> in the plugin.
 
 = Displaying an Event: Sample single.php Template =
 
 The following example includes hCalendar and other microformats if the post being viewed is an event.
-Note that you can have the plugin extend the <code>the_content()</code> template tag so that
-<code>eventscategory_the_time()</code> and <code>eventscategory_the_location()</code> are automatically
-preprended to the actual post content (that is, the event description). This option includes an extra <code>div</code>
-the 'vevent' which encapsulates the content and includes an extra hidden span which has the class of 'summary' to
-so that microformat will get all of the available information. So the drawback of the auto-include event data option is
-that the summary is included twice, and you have less control. If you want more control over
-how the event data is output, you can turn off this option and code your single.php template something
-like as follows:
-
-	<?php $isEventsCat = function_exists('is_events_category') && is_events_category(get_the_category()) ?>
-	<div class="post post-<?php the_ID(); if($isEventsCat) echo ' vevent'; ?>">
-		<h2><a class="<?php if($isEventsCat) echo ' summary' ?>" href="<?php echo get_permalink() ?>" rel="bookmark" title="Permanent Link: <?php the_title_attribute(); ?>"><?php the_title(); ?></a></h2>
-		<?php if($isEventsCat): ?>
-			<p>
-				<strong>When:</strong> <?php eventscategory_the_time() ?>
-			</p>
-			<?php eventscategory_the_location('<strong>Where:</strong>') ?>
-		<?php endif; ?>
-		<div class="entry">
-			<div class="<?php if($isEventsCat) echo ' description' ?>">
-			<?php the_content('<p class="serif">Read the rest of this entry &raquo;</p>'); ?>
-			</div>
-		</div>
-	</div>
-
+Please locate the file <code>example-templates/single.php</code> in the plugin.
 
 
 = Changelog =
-*2008-02-??: 0.2*
-* Improved rewrite-rule generation
-* Improved documentation
-* Included addGoogleMapsLinks.js (see documentation)
-* Improved the saving of the start date
-* Timezone specifier can now be specified to reflect what is set in gmt_offset
-* Released [old_post_date](http://wordpress.org/extend/plugins/old-post-date/) plugin
-* Removed use of PHP5-only function json_encode()
-* Fixed issue in displaying timezone where <code>get_the_time()</code> was being called with default parameter when the timezone format string is empty
-* Updated category template example.
-
-* Add configuration page to modify the options
-	* Option to automatically prepend the location to the_content, in both is_feed() and !is_feed()
-	* Option to prepend the time to the_content in both is_feed() and !is_feed()
-	* Prepended data in the_content includes hCalendar microformats
-	* Option to prepend a date format to the titles in non-iCal feeds
-	* Change the default format to be used by the datetime and location template tag functions
+*2008-10-10: 0.4*
+* Large re-write and re-development for WordPress 2.6
 
 *2008-02-13: 0.1 (beta)*
 

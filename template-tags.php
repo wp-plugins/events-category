@@ -107,10 +107,10 @@ function eventscategory_get_the_time($dt_format = ''){
 				}
 			}
 		}
-		$output .= '<abbr class="dtstart" title="' . get_post_time('Ymd\THis', true) . 'Z">';
+		$output .= '<time class="dtstart" datetime="' . get_post_time('Ymd\THis', true) . 'Z">';
 		#echo "<br><font color=green>" . get_post_time('Ymd\THis', true) . '</font>';
 		$output .= get_the_time($dtstart);
-		$output .= '</abbr>';
+		$output .= '</time>';
 		#echo $duration;
 		#dtend: Remove all formatting characters which are redundant
 		if($duration){
@@ -141,9 +141,9 @@ function eventscategory_get_the_time($dt_format = ''){
 			
 			#echo "<br><font color=blue>" . date('Ymd\THis', (int)get_post_time('U', true) + intval($duration)) . '</font><br>';
 			
-			$output .= '<abbr class="dtend" title="' . date('Ymd\THis', (int)get_post_time('U', true) + intval($duration)) . 'Z">';
+			$output .= '<time class="dtend" datetime="' . date('Ymd\THis', (int)get_post_time('U', true) + intval($duration)) . 'Z">';
 			$output .= date($dtend, $endTimestamp);
-			$output .= '</abbr>';
+			$output .= '</time>';
 		}
 		
 		$gmt_offset = get_option('gmt_offset');
