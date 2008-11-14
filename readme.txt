@@ -3,7 +3,6 @@ Contributors: westonruter
 Tags: events, calendar, posts
 Tested up to: 2.6.2
 Stable tag: trunk
-Donate link: http://weston.ruter.net/donate/
 
 Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts
 to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp
@@ -11,9 +10,7 @@ is used as the time stamp. Upcoming events widget included. HTML output contains
 
 == Description ==
 
-*Please donate to help me continue
-improving this plugin if you see real potential or find great usefulness in it.*
-**This plugin does not support recurring events!**
+*This plugin is developed at [Shepherd Interactive](http://www.shepherd-interactive.com/ "Shepherd Interactive specializes in web design and development in Portland, Oregon") for the benefit of the community.*
 
 Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts
 to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp

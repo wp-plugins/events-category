@@ -2,11 +2,11 @@
 /*
 Plugin Name: Events Category
 Plugin URI: http://wordpress.org/extend/plugins/events-category/
-Description: Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp is used as the event date.
+Description: Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp is used as the event date. <em>This plugin is developed at <a href="http://www.shepherd-interactive.com/" title="Shepherd Interactive specializes in web design and development in Portland, Oregon">Shepherd Interactive</a> for the benefit of the community.</em>
 Version: 0.4
 Author: Weston Ruter
 Author URI: http://weston.ruter.net/
-Copyright: 2008, Weston Ruter
+Copyright: 2008, Weston Ruter, Shepherd Interactive
 
 GNU General Public License, Free Software Foundation <http://creativecommons.org/licenses/GPL/2.0/>
 This program is free software; you can redistribute it and/or modify
