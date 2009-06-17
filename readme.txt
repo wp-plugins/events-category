@@ -10,7 +10,7 @@ is used as the time stamp. Upcoming events widget included. HTML output contains
 
 == Description ==
 
-*Notice: This plugin is not being actively maintained. Other priorities have arisen which have forced development to discontinue. Being open source and free, you are of course free to take the code and improve upon it; if you are a developer and would like to be added as a commiter to this plugin, please (contact me)[http://weston.ruter.net/contact/].*
+*Notice: This plugin is not being actively maintained. Other priorities have arisen which have forced development to discontinue. Being open source and free, you are of course free to take the code and improve upon it; if you are a developer and would like to be added as a commiter to this plugin, please [contact me](http://weston.ruter.net/contact/).*
 
 Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts
 to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp
