@@ -142,6 +142,10 @@ function eventscategory_update_gcal_action(){
 	// Remove filter that deletes _gcal_updated post meta (since we're not manually saving posts)
 	remove_action('save_post', 'eventscategory_action_save_post_delete_gcal_updated');
 	
+	$eventsCatID = get_option('eventscategory_cat_id');
+	$eventsCat = get_category($eventsCatID);
+	if(!$eventsCat)
+		die(__("Events category not supplied (option eventscategory_cat_id).", 'events-category'));
 	
 	$feedQueryArgs = array(
 		'singleevents' => 'true',
@@ -151,7 +155,7 @@ function eventscategory_update_gcal_action(){
 	if($ctz = get_option('timezone_string'))
 		$feedQueryArgs['ctz'] = str_replace(' ', '_', $ctz);
 	$feedURL = add_query_arg($feedQueryArgs, preg_replace('/\?.*/', '', get_option('eventscategory_gcal_feed_url')));
-	//$feedURL = 'http://www.google.com/calendar/feeds/newwine%40multnomah.edu/public/full-noattendees';
+	//$feedURL = 'http://www.google.com/calendar/feeds/.../public/full-noattendees';
 	if(!$feedURL)
 		die(__("No Google Calendar feed URL provided.", 'events-category'));
 	
@@ -231,7 +235,7 @@ function eventscategory_update_gcal_action(){
 		if($content)
 			$postmeta['_gcal_content'] = trim($content->textContent);
 		
-		//<gd:originalEvent id='ouaia8m2nved9t1d80vl88kopo' href='http://www.google.com/calendar/feeds/newwine%40multnomah.edu/public/full/ouaia8m2nved9t1d80vl88kopo'>
+		//<gd:originalEvent id='ouaia8m2nved9t1d80vl88kopo' href='http://www.google.com/calendar/feeds/.../public/full/ouaia8m2nved9t1d80vl88kopo'>
 		$originalEvent = $xpath->query('.//gd:originalEvent', $entry)->item(0);
 		if($originalEvent)
 			$postmeta['_gcal_originalevent_id'] = $originalEvent->getAttribute('href');
@@ -240,8 +244,8 @@ function eventscategory_update_gcal_action(){
 		$post['post_category'] = array();
 		if(!empty($post['ID']))
 			$post['post_category'] = wp_get_post_categories($post['ID']);
-		if(!in_array(NEWWINE_EVENTS_CATEGORY_ID, $post['post_category']))
-			$post['post_category'][] = NEWWINE_EVENTS_CATEGORY_ID;
+		if(!in_array($eventsCatID, $post['post_category']))
+			$post['post_category'][] = $eventsCatID;
 		
 		//Update/Insert post
 		#print '<pre>';
@@ -286,7 +290,7 @@ function temppppp(){
  */
 function is_events_category($catID = ''){
 	global $wp_query;
-	//return (is_category(NEWWINE_EVENTS_CATEGORY_ID) || in_category(NEWWINE_EVENTS_CATEGORY_ID) || (is_category() && cat_is_ancestor_of(NEWWINE_EVENTS_CATEGORY_ID, $wp_query->get_queried_object_id())))
+	//return (is_category($eventsCatID) || in_category($eventsCatID) || (is_category() && cat_is_ancestor_of($eventsCatID, $wp_query->get_queried_object_id())))
 	
 	$catIDs = array();
 	if(is_numeric($catID))
