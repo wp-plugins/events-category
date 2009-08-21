@@ -3,7 +3,7 @@
 Plugin Name: Events Category
 Plugin URI: http://wordpress.org/extend/plugins/events-category/
 Description: Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp is used as the event date. <em>This plugin is developed at <a href="http://www.shepherd-interactive.com/" title="Shepherd Interactive specializes in web design and development in Portland, Oregon">Shepherd Interactive</a> for the benefit of the community.</em>
-Version: 0.4
+Version: 0.5
 Author: Weston Ruter
 Author URI: http://weston.ruter.net/
 Copyright: 2008, Weston Ruter, Shepherd Interactive
@@ -24,229 +24,269 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+/**
+ * @todo We can use the originalEvent to provide a linkage between events (this event is part of a reoccuring )
+ * @todo Prevent events posts from getting orphaned?
+ */
+
+
+###### Initialization ########################################################################
+
 # Load up the localization file if we're using WordPress in a different language
 # Place it in the "localization" folder and name it "events-category-[value in wp-config].mo"
 load_plugin_textdomain('events-category', PLUGINDIR . '/events-category/i18n');
 
 add_option('eventscategory_default_name', __('Events', 'events-category'));
 add_option('eventscategory_default_slug', __('events', 'events-category'));
-add_option('eventscategory_future_slug', __('future', 'events-category'));
-add_option('eventscategory_past_slug', __('past', 'events-category'));
-add_option('eventscategory_ID', 0);
-add_option('eventscategory_timezone', __('PST', 'events-category'));
-add_option('eventscategory_timezone_dst', __('PDT', 'events-category'));
-
-setlocale(LC_TIME, __('0', 'events-category'));
+add_option('eventscategory_cat_id', 0);
 
 $eventscategory_default_main_date_format = __('F jS, [Y @] g[:i][a]{[ - ][F ][j][S, ][Y,] g[:i]a} T', 'events-category');
-$eventscategory_default_main_address_format = __("[%street-address%]\n[%extended-address%]\n[%locality%][, %region%][ %postal-code%]\n[%country-name%]", 'events-category');
-
 add_option('eventscategory_date_format', $eventscategory_default_main_date_format);
-add_option('eventscategory_address_format', $eventscategory_default_main_address_format);
-
 #Including the year: M. j[, Y][, g][:i][a]{[ – ][M. ][j, ][Y, ]g[:i]a} T
 
 
-$eventscategory_all_fieldnames = array(
-	'fn_org',
-	'extended-address',
-	'street-address',
-	'locality',
-	'region',
-	'postal-code',
-	'country-name',
-	'latitude',
-	'longitude',
-	'url'
-);
 
+/**
+ * Activate Events Category plugin
+ */
 function eventscategory_activate(){
-	global $wpdb, $wp_rewrite;
+	
+	// Make sure that the system supports this plugin
+	if(!class_exists('DOMDocument')){
+		trigger_error(__("It appears that you are using PHP4 and thus do not have the DOMDocument class available; please upgrade to PHP5."));
+	}
 
-	#Get the existing event category or create it
+	// Get the existing event category or create it
 	$eventsCat = null;
-	$eventsCatID = get_option('eventscategory_ID');
+	$eventsCatID = get_option('eventscategory_cat_id');
 	if(!($eventsCatID && ($eventsCat = get_category($eventsCatID)))){
-		#Get the events category by slug
+		// Get the events category by slug
 		if($eventsCat = get_category_by_slug(get_option('eventscategory_default_slug'))){
 			$eventsCatID = $eventsCat->term_id;
 		}
-		#Get the events category if it has the proper name
+		// Get the events category if it has the proper name
 		else if($eventsCatID = get_cat_ID(get_option('eventscategory_default_name'))){
 			$eventsCat = get_category($eventsCatID);
 		}
-		#Create the events category if it does not exist
+		// Create the events category if it does not exist
 		else {
 			$eventsCatID = wp_insert_category(array(
-				cat_name => get_option('eventscategory_default_name'),
-				category_nicename => get_option('eventscategory_default_slug')
+				'cat_name' => get_option('eventscategory_default_name'),
+				'category_nicename' => get_option('eventscategory_default_slug')
 			));
 			$eventsCat = get_category($eventsCatID);
 		}
-		
-		update_option('eventscategory_ID', $eventsCatID);
+		update_option('eventscategory_cat_id', $eventsCatID);
 	}
 	
-	#Now find all posts that are assigned to the events category or one of its subcategories and change post_status from 'future' to 'publish'
-	foreach($wpdb->get_col("SELECT ID FROM $wpdb->posts WHERE post_status = 'future'") as $post_id){
-		eventscategory_publish_future_post($post_id);
+	// Now find all posts that are assigned to the events category or one of its
+	// subcategories and change post_status from 'future' to 'publish'
+	foreach(get_posts(array('category' => $eventsCatID)) as $eventPost){
+		if($eventPost->post_status == 'future'){
+			wp_publish_post($eventPost->ID);
+		}
 	}
 	
-    $wp_rewrite->flush_rules();
-	$wp_rewrite->wp_rewrite_rules();
+	// Schedule an event to update the Google Calendar feeds
+	wp_schedule_event(time(), 'hourly', 'eventscategory_update_gcal');
 }
 register_activation_hook(__FILE__, 'eventscategory_activate');
 
-function eventscategory_init(){
-	if(is_admin())
-		wp_enqueue_script( 'jquery' );
+
+/**
+ * Cleanup when plugin deactivated
+ */
+function eventscategory_deactivate(){
+	wp_clear_scheduled_hook('eventscategory_update_gcal');
 }
-add_action('init', 'eventscategory_init');
+register_deactivation_hook(__FILE__, 'eventscategory_deactivate');
 
-#Find future post in the Events category and publish them when saved
-function eventscategory_publish_future_post($postID){
-	$post = get_post($postID);
-	$eventsCategoryID = (int)get_option('eventscategory_ID');
+
+
+
+
+###### UPDATING EVENT POSTS ##################################################################
+
+/**
+ * Whenever an event post is manually saved, delete the _gcal_updated postmeta
+ * so that the next thme the gcal feed is fetched, the post won't be skipped
+ */
+function eventscategory_action_save_post($post_id, $post){
+	// Whenever an event post is manually saved, delete the _gcal_updated postmeta
+	// so that the next thme the gcal feed is fetched, the post won't be skipped
+	delete_post_meta($post_id, '_gcal_updated');
 	
-	//Determine if one of the post categories is the event category or a descendent of the event category
-	if(!empty($eventsCategoryID)){
-		$isRelatedToEventCategory = false;
-		foreach(wp_get_post_categories($postID) as $catID){
-			if($catID == $eventsCategoryID || cat_is_ancestor_of($eventsCategoryID, (int)$catID)){
-				$isRelatedToEventCategory = true;
-				break;
-			}
-		}
-	}
-	
-	if($post->post_status == 'future' && (!$eventsCategoryID || $isRelatedToEventCategory))
-		wp_publish_post($postID);
-}
-
-//WE NEED TO MAKE SURE THAT THIS WILL WORK WITH AJAX SAVE! //TODO
-#
-
-
-
-#add_meta_box('pagecustomdiv', __('Custom Fields'), 'page_custom_meta_box', 'page', 'advanced', 'core');
-function eventscategory_save_post($postID, $post){
-	#Since publishing a post from the future causes the 'save_post' action to be done
-	#   check to see if it is future and stop if so, so that this functions logic
-	#   is only run once.
+	// Ensure that if the post has a future status, that it gets changed to publish
+	// so that it will appear in the WP Queries
+	$eventsCatID = get_option('eventscategory_cat_id'); #TODO: There could potentially be multiple event categories each associated with a different GCal
 	if($post->post_status == 'future'){
-		eventscategory_publish_future_post($postID);
-		return;
-	}
-	global $wpdb, $eventscategory_all_fieldnames;
-	
-	#Note that only the end date is sent using custom fields; the start date is sent using the
-	#  regular post timestamp variables; BUT, we should be putting them all in post_custom
-	//if(preg_match('/^\d\d\d\d-\d\d-\d\d$/', $_POST['eventscategory_dend'])){ #PROBLEM
-	//	$dtstart = $post->post_date;
-	//	
-	//	#Find the end date and calculate and save the duration
-	//	$dtend = $_POST['eventscategory_dend'];
-	//	if(empty($_POST['eventscategory_allday']) && preg_match('/^(\d?\d):\d\d$/', $_POST['eventscategory_tend']))
-	//		$dtend .= ' ' . $_POST['eventscategory_tend'] . ':00';
-	//	if(empty($_POST['eventscategory_allday']) && @$_POST['eventscategory_tstart'] && @$_POST['eventscategory_tend'])
-	//		$duration = strtotime($dtend) - strtotime($dtstart);
-	//	else
-	//		$duration = 0;
-	//	if($duration < 0)
-	//		$duration = 0;
-	//		
-	//	if(!update_post_meta($postID, '_event_duration', $duration))
-	//		add_post_meta($postID, '_event_duration', $duration, true);
-	//}
-	
-	if(array_key_exists('eventscategory_duration', $_POST)){
-		if(!update_post_meta($postID, '_event_duration', $_POST['eventscategory_duration']))
-			add_post_meta($postID, '_event_duration', $_POST['eventscategory_duration'], true);
-	}
-	
-	#Update location
-	foreach($eventscategory_all_fieldnames as $fieldName){
-		if(array_key_exists('eventscategory-' . $fieldName, $_POST)){
-			$value = stripslashes($_POST['eventscategory-' . $fieldName]);
-			if(!empty($value)){
-				if(!update_post_meta($postID, '_event_' . $fieldName, $value))
-					add_post_meta($postID, '_event_' . $fieldName, $value, true);
-			}
-			else {
-				delete_post_meta($postID, '_event_' . $fieldName);
+		foreach(wp_get_post_categories($post_id) as $catID){
+			if($catID == $eventsCatID || cat_is_ancestor_of($eventsCatID, (int)$catID)){
+				wp_publish_post($post_id);
+				return;
 			}
 		}
 	}
 }
-add_action('save_post', 'eventscategory_save_post', 10, 2);
+add_action('save_post', 'eventscategory_action_save_post', 10, 2);
 
 
-#Modify the rewrite rules so that they will know about the special URLs for event categories
-function eventscategory_category_rewrite_rules($rules){
-	global $wp_query, $wp_rewrite;
-	$eventsCategoryID = (int)get_option('eventscategory_ID');
-	$eventCategoryPaths = array();
-	$eventCats = array_merge(
-		array(get_category($eventsCategoryID)),
-		get_categories('child_of=' . $eventsCategoryID . '&hide_empty=0')
+/**
+ * Scheduled function which gets the Google Calendar events
+ */
+function eventscategory_update_gcal_action(){
+	global $wpdb;
+	if(!class_exists('DOMDocument'))
+		trigger_error(__("DOMDocument not available. Please ensure using PHP5.", 'events-category'));
+	
+	// Remove filter that deletes _gcal_updated post meta (since we're not manually saving posts)
+	remove_action('save_post', 'eventscategory_action_save_post_delete_gcal_updated');
+	
+	
+	$feedQueryArgs = array(
+		'singleevents' => 'true',
+		'start-max' => date('Y-m-d', time()+3600*24*365),
+		'max-results' => 1000000
 	);
+	if($ctz = get_option('timezone_string'))
+		$feedQueryArgs['ctz'] = str_replace(' ', '_', $ctz);
+	$feedURL = add_query_arg($feedQueryArgs, preg_replace('/\?.*/', '', get_option('eventscategory_gcal_feed_url')));
+	//$feedURL = 'http://www.google.com/calendar/feeds/newwine%40multnomah.edu/public/full-noattendees';
+	if(!$feedURL)
+		die(__("No Google Calendar feed URL provided.", 'events-category'));
 	
-	#Get the paths to all of the event categories
-	foreach($eventCats as $eventCat){
-		$node = $eventCat;
-		$path = $node->category_nicename;
-		while($node->parent){
-			$node = get_category($node->parent);
-			$path = $node->category_nicename . '/' . $path;
+	$doc = new DOMDocument();
+	$xml = file_get_contents($feedURL);
+	#$xml = file_get_contents(ABSPATH . '/wp-content/gcal.xml');
+	if(!$doc->loadXML($xml))
+		die(sprintf(__("Unable to parse Google Calendar XML feed: %s", 'events-category'), $feedURL));
+	$xpath = new DOMXPath($doc);
+	$xpath->registerNamespace('atom', 'http://www.w3.org/2005/Atom');
+	$xpath->registerNamespace('gCal', 'http://schemas.google.com/gCal/2005');
+	
+	$gcal_feed_id = trim($xpath->query('./atom:id', $doc->documentElement)->item(0)->textContent);	
+	
+	foreach($xpath->query('//atom:entry') as $entry){
+		//GCal ID becomes WordPress post guid
+		$gcal_id = trim($xpath->query('.//atom:id', $entry)->item(0)->textContent);
+		$post = $wpdb->get_row($wpdb->prepare("SELECT * FROM $wpdb->posts p WHERE p.guid = %s", $gcal_id), ARRAY_A);
+		if(!$post)
+			$post = array();
+		$postmeta = array(
+			'_gcal_updated' => trim($xpath->query('.//atom:updated', $entry)->item(0)->textContent),
+			'_gcal_feed_id' => $gcal_feed_id
+		);
+		
+		// If WP GCal updated time is exactly the same as this updated time, then skip;
+		// note that whenever someone saves a post manually, this postmeta is deleted so
+		// that this will not get skipped
+		if(!empty($post['ID']) && get_post_meta($post['ID'], '_gcal_updated', true) == $postmeta['_gcal_updated']){
+			print "SKIPPING: " . trim($xpath->query('.//atom:title', $entry)->item(0)->textContent) . "<br>";
+			continue;
 		}
-		$eventCategoryPaths[] = $path;
+		
+		//Google Calendar overrides the title and time, but not the description
+		if(empty($post['post_title']))
+			$post['post_title'] = trim($xpath->query('.//atom:title', $entry)->item(0)->textContent);
+		#if(strpos($post['post_title'], 'GCal') === false)
+		#	$post['post_title'] = '[GCal] ' . $post['post_title'];
+		$post['post_type'] = 'post';
+		$post['guid'] = $gcal_id;
+		
+		//Set the creator of the post
+		if(empty($post['post_author'])){
+			$admin = get_userdatabylogin('admin');
+			if($admin)
+				$post['post_author'] = $admin->ID;
+		}
+		
+		//WordPress overrides post status
+		if(empty($post['post_status'] ))
+			$post['post_status'] = 'publish';
+		
+		//<gd:when startTime='2008-02-21T19:00:00.000-08:00' endTime='2008-02-21T22:00:00.000-08:00'/>
+		$when = $xpath->query('.//gd:when', $entry)->item(0);
+		if($when){
+			$post['post_date'] = str_replace('T', ' ', $when->getAttribute('startTime')); #expects localtime from Google
+			$post['post_date_gmt'] = get_gmt_from_date($post['post_date']);
+			$postmeta['_gcal_starttime'] = $when->getAttribute('startTime'); //str_replace('T', ' ', $when->getAttribute('startTime'));
+			$postmeta['_gcal_endtime'] = $when->getAttribute('endTime'); //str_replace('T', ' ', $when->getAttribute('endTime'));
+			
+			//Duration calculated and saved here so that events currently in progress can still be returned in upcoming events
+			$postmeta['_gcal_duration'] = max(0, strtotime($postmeta['_gcal_endtime']) - strtotime($postmeta['_gcal_starttime']));
+		}
+		
+		//<gd:where valueString='2214 NE Oregon St., Portland, OR (Urban Grind)'/>
+		$where = $xpath->query('.//gd:where', $entry)->item(0);
+		if($where)
+			$postmeta['_gcal_where'] = $where->getAttribute('valueString');
+		
+		//<link rel='alternate' type='text/html' href='http://www.google.com/calendar/event?eid=NjNoZGZsYWoyMG5ocWYzanZvczFubWh2MWcgbmV3d2luZUBtdWx0bm9tYWguZWR1' title='alternate'/>
+		$gcalLink = $xpath->query('.//atom:link[@rel="alternate" and @type="text/html"]', $entry)->item(0);
+		if($gcalLink)
+			$postmeta['_gcal_alternate_link'] = $gcalLink->getAttribute('href');
+		
+		//<content type='text'>: NOTE: Must add a the_content filter to supply from _gcal_content postmeta if post_content is blank
+		$content = $xpath->query('.//atom:content', $entry)->item(0);
+		if($content)
+			$postmeta['_gcal_content'] = trim($content->textContent);
+		
+		//<gd:originalEvent id='ouaia8m2nved9t1d80vl88kopo' href='http://www.google.com/calendar/feeds/newwine%40multnomah.edu/public/full/ouaia8m2nved9t1d80vl88kopo'>
+		$originalEvent = $xpath->query('.//gd:originalEvent', $entry)->item(0);
+		if($originalEvent)
+			$postmeta['_gcal_originalevent_id'] = $originalEvent->getAttribute('href');
+		
+		//The post is always going to be in the Events category... must not clobber any existing categories though
+		$post['post_category'] = array();
+		if(!empty($post['ID']))
+			$post['post_category'] = wp_get_post_categories($post['ID']);
+		if(!in_array(NEWWINE_EVENTS_CATEGORY_ID, $post['post_category']))
+			$post['post_category'][] = NEWWINE_EVENTS_CATEGORY_ID;
+		
+		//Update/Insert post
+		#print '<pre>';
+		#print $post['post_title'] . "\n";
+		#print $post['post_date'] . "\n";
+		#print $gcal_id . "\n\n";
+		#print '</pre>';
+		#print '<hr>';
+		//continue;
+		
+		//continue;
+		print '<pre>';
+		print_r($post);
+		print_r($postmeta);
+		print '</pre>';
+		//print '<hr>';
+		
+		$post['ID'] = wp_update_post($post);
+		if($post['ID']){
+			foreach($postmeta as $meta_key => $meta_value ){
+				update_post_meta($post['ID'], $meta_key, $meta_value);
+			}
+		}
 	}
-	
-	$past_slug = get_option('eventscategory_past_slug');
-	$future_slug = get_option('eventscategory_future_slug');
-	
-	$category_permastruct = trim($wp_rewrite->get_category_permastruct(), '/');
-	$feed_permastruct = trim($wp_rewrite->get_feed_permastruct(), '/');
-	
-	#Get all feed types
-	$feeds = (array)$wp_rewrite->feeds;
-	array_push($feeds, 'ical');
-	array_unique($feeds);
-	
-	$newRules = array();
-	foreach($eventCategoryPaths as $catPath){
-		### Upcoming events feeds (remember that iCal feeds return all) #####
-		#With /feed/ base; rule was: "$cat_base/($catPath)/(?:$future_slug/)?$wp_rewrite->feed_base/(feed|rdf|rss|rss2|atom|ical)/?\$"
-		$newRules[str_replace('%category%', "($catPath)/(?:(?:$future_slug|$past_slug)/)?", $category_permastruct)
-		          . str_replace('%feed%', '(' . join('|', $feeds) . ')', $feed_permastruct)
-		          . '/?$'] = 'index.php?category_name=$matches[1]&feed=$matches[2]&eventscategory-position=0';
-		
-		#Without feed base
-		$newRules[str_replace('%category%', "($catPath)/(?:(?:$future_slug|$past_slug)/)?", $category_permastruct)
-		          . str_replace('%feed%', '', $feed_permastruct)
-		          . '/?$'] = 'index.php?category_name=$matches[1]&feed=feed&eventscategory-position=0';
-		
-		### WordPress category event pages ####
-		#Upcoming events; rule was "$cat_base/($catPath)/$future_slug(/|[01]/?)?\$"
-		$newRules[str_replace('%category%', "($catPath)/$future_slug(/|[01]/?)?\$", $category_permastruct)] = 'index.php?category_name=$matches[1]&eventscategory-position=0';
-		
-		#Future events; rule was "$cat_base/($catPath)/$future_slug/(\d+)/?\$"
-		$newRules[str_replace('%category%', "($catPath)/$future_slug/(\d+)/?\$", $category_permastruct)] = 'index.php?category_name=$matches[1]&eventscategory-position=" . ((int)$matches[2]-1) . "';
-		
-		#Future events; rule was "$cat_base/($catPath)/$past_slug(/|[01]/?)?\$"
-		$newRules[str_replace('%category%', "($catPath)/$past_slug(/|[01]/?)?\$", $category_permastruct)] = 'index.php?category_name=$matches[1]&eventscategory-position=-1';
-		
-		#Future events; rule was "$cat_base/($catPath)/$past_slug/(\d+)/?\$"
-		$newRules[str_replace('%category%', "($catPath)/$past_slug/(\d+)/?\$", $category_permastruct)] = 'index.php?category_name=$matches[1]&eventscategory-position=" . (-(int)$matches[2]) . "';
-	}
-	return array_merge($newRules, $rules);
 }
-add_filter('category_rewrite_rules', 'eventscategory_category_rewrite_rules');
+add_action('eventscategory_update_gcal', 'eventscategory_update_gcal_action');
 
 
-#Determine if this category is the events category or if the category is a subcategory
+function temppppp(){
+	//if(get_option('newwine_migrated')){
+		do_action('eventscategory_update_gcal');
+		exit;
+	//}
+}
+#add_action('init', 'temppppp');
+
+
+////// HELPER FUNCTIONS //////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Determine if this category is the events category or if the category is a subcategory
+ */
 function is_events_category($catID = ''){
 	global $wp_query;
+	//return (is_category(NEWWINE_EVENTS_CATEGORY_ID) || in_category(NEWWINE_EVENTS_CATEGORY_ID) || (is_category() && cat_is_ancestor_of(NEWWINE_EVENTS_CATEGORY_ID, $wp_query->get_queried_object_id())))
 	
 	$catIDs = array();
 	if(is_numeric($catID))
@@ -265,8 +305,8 @@ function is_events_category($catID = ''){
 	}
 	
 	if(empty($catIDs)) {
-		#This conditional is needed because if going to non-existent post under events category, it will think
-		#   that it is not single
+		// This conditional is needed because if going to non-existent post
+		// under events category, it will think that it is not single
 		if($wp_query->get('name'))
 			return false;
 		
@@ -278,7 +318,7 @@ function is_events_category($catID = ''){
 	}
 	if(empty($catIDs))
 		return false;
-	$eventsCategoryID = (int)get_option('eventscategory_ID');
+	$eventsCategoryID = (int)get_option('eventscategory_cat_id');
 	
 	foreach($catIDs as $catID){
 		#This category is exactly the events category
@@ -293,284 +333,303 @@ function is_events_category($catID = ''){
 }
 
 
-#Get the current position in the timeline
-function eventscategory_request($request){
-	global $wp;
-	if(is_numeric($_GET['eventscategory-position'])){
-		$request['eventscategory-position'] = (int)$_GET['eventscategory-position'];
-	}
-	else {
-		parse_str($wp->matched_query, $ruleQuery);
-		if(is_numeric($ruleQuery['eventscategory-position']))
-			$request['eventscategory-position'] = (int)$ruleQuery['eventscategory-position'];
-	}
-	return $request;
-}
-add_filter('request', 'eventscategory_request');
-
-
-#Tag the SQL query so that modifications can be made by the 'posts_request' filter
-function eventscategory_posts_fields($sql){
-	return is_events_category() ? "/*EVENTS-FIELDS*/ $sql" : $sql;
-}
-add_filter('posts_fields', 'eventscategory_posts_fields');
-
-#Tag the SQL query so that modifications can be made by the 'posts_request' filter
-function eventscategory_posts_where($sql){
-	global $wp_query, $wpdb;
-	#From wp-includes/query.php line #658
-	if ( !( $wp_query->is_singular || $wp_query->is_archive || $wp_query->is_search || $wp_query->is_trackback || $wp_query->is_404 || $wp_query->is_admin || $wp_query->is_comments_popup ) ){
-		#Modify the WHERE clause if is_home so that the future posts aren't displayed
-		$sql .= " AND $wpdb->posts.post_date < '" . current_time('mysql') . "'";
-	}
-	return "/*EVENTS-WHERE*/$sql";
-}
-add_filter('posts_where', 'eventscategory_posts_where');
-
-#Tag the SQL query so that modifications can be made by the 'posts_request' filter
-function eventscategory_filter_posts_groupby($sql){
-	return '/*EVENTS-GROUP-BY*/' . $sql;
-}
-add_filter('posts_groupby', 'eventscategory_filter_posts_groupby');
-
-#Tag the SQL query so that modifications can be made by the 'posts_request' filter
-function eventscategory_filter_post_limits($sql){
-	return "/*EVENTS-LIMIT*/ $sql";
-}
-add_filter('post_limits', 'eventscategory_filter_post_limits');
-
-
-#Modify the posts query to get the events properly
-function eventscategory_filter_posts_request($sql){
-	global $wpdb, $paged, $wp_query;
+/**
+ * Determine if we are in an Events Category
+ */
+function in_events_category($post_id = 0){
+	global $post;
+	if(!$post_id)
+		$post_id = $post->ID;
+	if(!$post_id)
+		return;
 	
-	#PROBLEM: We must revisit is_events_category() to go up call stack or to be a new method of WP_Query()
-	#     Can we create a new Global $eventscategory_wp_query??? Which is set if the query is events category. Then the function is_events_category can just check to see if it exists
-	if(!is_admin() && !($wp_query->is_year || $wp_query->is_month || $wp_query->is_day) && is_events_category()){ #PROBLEM: this is not getting the value in the 
-		#This SQL query should ideally be resdeigned to use COUNT(*)... but that would be very complicated
-		$countFutureSQL = #preg_replace('{(?<=SELECT)\s+SQL_CALC_FOUND_ROWS}',
-		                  #' ',
-						  preg_replace('{/\*EVENTS-FIELDS\*/.+?(?=FROM)}',
-		                               ' ID ',
-						  preg_replace('{/\*EVENTS-WHERE\*/}',
-		                               ' AND post_date >= NOW() ',
-						  preg_replace('{/\*EVENTS-LIMIT\*/\s*LIMIT\s*\d+(\s*,\s*\d*+)?}',
-									   '',
-						  #preg_replace('{GROUP BY\s*/\*EVENTS-GROUP-BY\*/.+?(?=ORDER BY|LIMIT)}',
-		                  #'',
-						  $sql
-						  )
-						  #)
-						  )
-						  #)
-						  );
-		$wpdb->query($countFutureSQL);
-		$wp_query->eventscategory_future_found_posts = $wpdb->get_var('SELECT FOUND_ROWS()');
-		
-		$posts_per = (int)$wp_query->get('posts_per_page');
-		$futurePageCount = ceil($wp_query->eventscategory_future_found_posts/$posts_per);
-		
-		$position = (int)$wp_query->get('eventscategory-position');
-		
-		if(get_query_var('nopaging') || get_query_var('feed') == 'ical'){
-			$sql = preg_replace('{/\*EVENTS-LIMIT\*/\s*LIMIT\s*\d+(\s*,\s*\d*+)?}', '', $sql);
+	foreach(wp_get_post_categories($post_id) as $catID){
+		if(is_events_category($catID))
+			return true;
+	}
+	return false;
+}
+
+
+////// FILTERS FOR MODIFYING THE QUERY ////////////////////////////////////////////////
+
+
+/**
+ * Add the _gcal_duration to the query
+ * @see eventscategory_filter_posts_where
+ */
+function eventscategory_filter_posts_join($join){
+	global $wpdb;
+	if(!is_admin() && is_events_category()){
+		$join .= " LEFT JOIN $wpdb->postmeta eventscategorypm ON eventscategorypm.post_id = $wpdb->posts.ID AND eventscategorypm.meta_key = '_gcal_duration' ";
+	}
+	return $join;
+}
+add_filter('posts_join', 'eventscategory_filter_posts_join');
+
+
+/**
+ * Make sure that when querying events category, that if not paged, only the future posts are returned
+ * @see eventscategory_filter_posts_join
+ */
+function eventscategory_filter_posts_where($where){
+	global $wpdb;
+	if(!is_admin() && is_events_category()){
+		#TODO: We need to factor in the duration as well!
+		$now = "'2008-04-11 23:31:00'";
+		$endtime = "IF(eventscategorypm.meta_value IS NULL, $now, DATE_ADD($now, INTERVAL eventscategorypm.meta_value SECOND))"; #how do we get this _gcal_duration to be selected in the first place? LEFT JOIN?
+		if(!is_paged())
+			$where .= " AND $wpdb->posts.post_date >= $endtime";
+		else 
+			$where .= " AND $wpdb->posts.post_date < $endtime";
+	}
+	return $where;
+}
+add_filter('posts_where', 'eventscategory_filter_posts_where');
+
+
+/**
+ * When we are in future events, we should reverse the posts?
+ * @todo Is this better than filtering the order by?
+ */
+//function eventscategory_the_posts($posts){
+//	global $wp_query;
+//	if(!is_admin() && !$wp_query->get('nopaging') && $wp_query->get('feed') != 'ical' && is_events_category() && $wp_query->get('eventscategory-position') >= 0){
+//		return array_reverse($posts);
+//	}
+//	return $posts;
+//}
+//add_filter('the_posts', 'eventscategory_the_posts');
+
+
+/**
+ * When in an events category, change order to be ASC
+ */
+function eventscategory_filter_posts_orderby($orderby){
+	global $wpdb;
+	if(!is_admin() && !is_paged() && is_events_category())
+		$orderby = "$wpdb->posts.post_date ASC";
+	return $orderby;
+}
+add_filter('posts_orderby', 'eventscategory_filter_posts_orderby');
+
+
+/**
+ * Ensure that all future posts are returned, that none are paged; if paged,
+ * then past events are being queried, and change the paged limit to start from
+ * zero because when viewing past events, no future posts are included in the results
+ * and thus the paged is offset by two.
+ *
+ * @todo Does this only work with $wp_query and not when making new WP_Query instances?
+ * @see eventscategory_filter_posts_where()
+ * @see eventscategory_recalculate_max_num_pages()
+ */
+function eventscategory_filter_post_limits_request($limits){
+	//global $wp_query;
+	if(!is_admin() && is_events_category()){
+		if(is_paged()){
+			$limits = 'LIMIT ' .
+			           (get_query_var('paged') - 2) * get_query_var('posts_per_page') .
+					   ', ' .
+					   get_query_var('posts_per_page');
 		}
 		else {
-			$wp_query->eventscategory_future_remainder_count = ($wp_query->eventscategory_future_found_posts % $posts_per);
-			$limit1 = $wp_query->eventscategory_future_found_posts-$posts_per*($position+1);
-			
-			#If we're too far in the future for results
-			if($limit1+$posts_per <= 0){
-				$limit1 = 0;
-				$limit2 = 0;
-			}
-			#If we are on the last page of future results
-			else if($limit1 < 0){
-				$limit1 = 0;
-				$limit2 = $wp_query->eventscategory_future_remainder_count;
-			}
-			#Normal case
-			else {
-				$limit2 = $posts_per;
-			}
-			
-			$paged = $wp_query->query_vars['paged'] = ceil($limit1/$posts_per)+1;
-			$sql = preg_replace('{/\*EVENTS-LIMIT\*/\s*LIMIT\s*\d+(\s*,\s*\d*+)?}', "LIMIT $limit1, $limit2", $sql);
+			$limits = '';
 		}
 	}
+	return $limits;
+}
+add_filter('post_limits_request', 'eventscategory_filter_post_limits_request');
+
+
+/**
+ * Here we ensure that past event pages get provided
+ */
+function eventscategory_recalculate_max_num_pages(&$query){
+	if(!is_admin() && $query->is_category && is_events_category($query->get_queried_object_id())){
+		$query->max_num_pages += !$query->is_paged ? 2 : 1; #if not is_paged, then the page is 0
+	}
+}
+add_action('loop_start', 'eventscategory_recalculate_max_num_pages');
+
+
+
+
+
+
+////// FILTERS AND FUNCTIONS FOR MODIFYING THE DISPLAY ////////////////////////////////////////////////
+
+/**
+ * If no content is provided and the current post does have _gcal_content
+ */
+function eventscategory_filter_the_content($content){
+	global $post;
+	if(!trim($content)){
+		$content = get_post_meta($post->ID, '_gcal_content', true);
+		$content = wpautop(wptexturize($content)); #apply_filters('the_content', $content)
+		
+		//Do we need to wpautop?
+	}
+	return $content;
+}
+add_filter('the_content', 'eventscategory_filter_the_content');
+
+
+/**
+ * Filter the_date to provide the event time?
+ */
+
+
+
+
+$eventscategory_default_main_date_format = 'F jS, [Y @] g[:i][a]{[ - ][F ][j][S, ][Y,] g[:i]a} T';
+function eventscategory_the_time($dt_format = ''){
+	echo eventscategory_get_the_time($dt_format);
+}
+
+function eventscategory_get_the_time($dt_format = ''){
+	global $post, $eventscategory_default_main_date_format;
+	if(!$dt_format)
+		$dt_format = $eventscategory_default_main_date_format; #$dt_format = $eventscategory_default_main_date_format;
 	
-	$sql = preg_replace('{GROUP BY\s*/\*EVENTS-GROUP-BY\*/\s*(?=ORDER BY|LIMIT)}', '', $sql);
-	return $sql;
-}
-add_filter('posts_request', 'eventscategory_filter_posts_request');
-
-
-#Rewrite the rules when a category is touched
-function eventscategory_rewrite_rules(){
-    global $wp_rewrite;
-    $wp_rewrite->flush_rules();
-	$wp_rewrite->wp_rewrite_rules();
-}
-add_action('create_category', 'eventscategory_rewrite_rules');
-add_action('delete_category', 'eventscategory_rewrite_rules');
-add_action('edit_category', 'eventscategory_rewrite_rules');
-
-
-#Here we need to fix max_num_pages: we recalculate max_num_pages because there may
-#    be an extra page due to the present time splitting the result pages
-#    We can't use the 'wp' action because it is not called by embedded queries
-#    nor can we use the 'found_posts' filter because it occurs before max_num_pages is set
-#    And of course we can't use pre_get_posts because this is also before either found_posts is
-#    set and before everything else. So we use the_posts in order to fix max_num_pages
-#    at the last second.
-function eventscategory_recalculate_max_num_pages(&$args){
-	global $wp_query;
-	if(!is_admin() && is_events_category()){
-		if(!$wp_query->get('nopaging')){
-			$past_found_posts = $wp_query->found_posts - $wp_query->eventscategory_future_found_posts;
-			$posts_per = (int)$wp_query->get('posts_per_page');
-			$wp_query->max_num_pages =
-						  ceil($past_found_posts/$posts_per)
-						  +
-						  ceil($wp_query->eventscategory_future_found_posts/$posts_per);
-						  
-		}
-	}
-	return $args; //pass through
-}
-add_filter('the_posts', 'eventscategory_recalculate_max_num_pages');
-
-
-#Disable canonical redirection
-function eventscategory_wp_action(&$query){
-	if(!is_admin() && is_events_category()){
-		//Issue: when loading initially, the paged variable is set to enable navigation; the canonical navigation
-		//       redirects to the necessary canonical category page including /page/X/; this must be disabled.
-		remove_filter('template_redirect', 'redirect_canonical');
-	}
-}
-add_action('wp', 'eventscategory_wp_action');
-
-
-//Note: when we are in future events, we should reverse the posts
-function eventscategory_the_posts($posts){
-	global $wp_query;
-	if(!is_admin() && !$wp_query->get('nopaging') && $wp_query->get('feed') != 'ical' && is_events_category() && $wp_query->get('eventscategory-position') >= 0){
-		return array_reverse($posts);
-	}
-	return $posts;
-}
-add_filter('the_posts', 'eventscategory_the_posts');
-
-
-#Since by default, categoryevents-position == 0, when there are no longer any future posts, WordPress
-#   will handle it as a 404 because no posts are returned. We need to prevent this behavior by forcing
-#   the category template to show up.
-function eventscategory_template_redirect(){
-	global $wp_query;
-	if(!is_feed() && is_404() && is_events_category()){
-		#Allow the next_posts_link to appear
-		if($wp_query->found_posts > 0)
-			$wp_query->max_num_pages++;
-			
-		$wp_query->is_category = true;
-		$wp_query->is_archive = true;
+	$output = '';
+	
+	if(preg_match('/^(.+?){(?:\[(.+?)\])?(.+?)}(.+)?$/', $dt_format, $matches)){
+		$dtstart = $matches[1];
+		$dtseparator = $matches[2];
+		$dtend = $matches[3];
+		$dttz = $matches[4];
 		
-		if($template = get_category_template()){
-			include($template);
-			exit;
-		}
-	}
-}
-add_action('template_redirect', 'eventscategory_template_redirect');
-
-
-
-#Filter the URLs for the next and previous posts links; this is a bit janky because we have
-#  to look at the function's call stack to know whether or not the URL being passed in
-#  is for the next or previous posts page
-function eventscategory_clean_url($url, $original_url, $context){
-	global $wp_query;
-	if(!is_admin() && is_events_category()){
-		$is_future = $is_past = false;
+		$formatChars = 'dDjlNSwzWFmMntLoYyaABgGhHisueIOPTZcrU';
 		
-		#Determine if we are trying to get the next link or previous link
-		foreach(debug_backtrace() as $caller){
-			if(strpos($caller['function'], 'previous_') === 0){ //Question: should we be more explicit?
-				$is_future = true;
-				break;
-			}
-			else if(strpos($caller['function'], 'next_') === 0){ //Question: should we be more explicit?
-				$is_past = true;
-				break;
+		$gcal_startTime = get_post_meta($post->ID, '_gcal_starttime', true);
+		$gcal_endTime = get_post_meta($post->ID, '_gcal_endtime', true);
+		$startTimestamp = $gcal_startTime ? strtotime($gcal_startTime) : (int)get_the_time('U');
+		$endTimestamp = $gcal_endTime ? strtotime($gcal_endTime) : (int)get_the_time('U');
+
+		#NOTE: Seconds should not be allowed
+		
+		$current = array();
+		foreach(preg_split('//', $formatChars) as $c){
+			$current[$c] = date($c);
+		}
+		
+		$start = array(); #keep track of the values used in the dtstart
+		foreach(preg_split('//', $formatChars) as $c){
+			$start[$c] = date($c, $startTimestamp);
+		}
+		
+		$end = array();
+		if($startTimestamp != $endTimestamp){
+			foreach(preg_split('//', $formatChars) as $c){
+				$end[$c] = date($c, $endTimestamp);
 			}
 		}
-		if($is_future || $is_past){
-			$position = (int)get_query_var('eventscategory-position');
-			$new_position = $is_past ? $position - 1 : $position + 1;
-			
-			#Determine if the current page's position is too far into the future
-			#$posts_per = is_feed() ? (int)get_option('posts_per_rss') : (int)get_option('posts_per_page');
-			$posts_per = (int)$wp_query->get('posts_per_page');
-			if($new_position > 0){
-				$newest_position = ceil($wp_query->eventscategory_future_found_posts/$posts_per)-1;
-				if($new_position > $newest_position){
-					$new_position = $newest_position;
+		$is_same_day = ($start['z'] === $end['z'] && $start['Y'] === $end['Y']);
+		
+		#dtstart: Find all formatting characters which are optional
+		if(preg_match_all("/\[[^\[\]]*?(?<!\\\\)([$formatChars])[^\[\]]*?\]/", $dtstart, $matches)){
+			foreach($matches[1] as $c){
+				if((preg_match("/[oYy]/", $c) && $current[$c] == $start[$c]) #remove year if same as current
+					 ||
+				   (preg_match("/[a]/", $c) && $start[$c] == $end[$c] && ($startTimestamp != $endTimestamp) && $is_same_day) #remove AM/PM specifier if same as end time
+					 ||
+				   (preg_match("/[i]/", $c) && preg_match('/^0*$/', $start[$c])) #remove minutes if they are zero
+				   # ||
+				   #(preg_match("/[BsU]/", $c) && !$duration) #Why did this have [i] and [Aa]??? hH gG; 
+				){	
+					#If the value is the same as the value current time, then remove the and the surrounding brackets
+					$dtstart = preg_replace("/\[[^\[\]$formatChars]*${c}[^\[\]$formatChars]*\]/s", '', $dtstart);
+				}
+				else {
+					#If field provided, remove optional-delimiters and inject microformats
+					$dtstart = preg_replace("/\[([^\[\]$formatChars]*)$c([^\[\]$formatChars]*)\]/s", "$1$c$2", $dtstart);
 				}
 			}
-			#Determine if the current page's position is too far in the past
-			else if($new_position < 0){
-				$oldest_position = -ceil(($wp_query->found_posts - $wp_query->eventscategory_future_found_posts)/$posts_per);
-				if($new_position < $oldest_position){
-					$new_position = $oldest_position;
+		}
+		$output .= '<time class="dtstart" datetime="' . gmdate('Ymd\THis', $startTimestamp) . 'Z">';
+		#echo "<br><font color=green>" . get_post_time('Ymd\THis', true) . '</font>';
+		$output .= date($dtstart, $startTimestamp);
+		$output .= '</time>';
+		#echo $duration;
+		#dtend: Remove all formatting characters which are redundant
+		if($startTimestamp != $endTimestamp){
+			if($dtseparator)
+				$output .= "<span class='separator'>$dtseparator</span>";
+			
+			if(preg_match_all("/\[[^\[\]]*?(?<!\\\\)([$formatChars])[^\[\]]*?\]/", $dtend, $matches)){
+				foreach($matches[1] as $c){
+					if(#Remove year if it is the same as the start, and same as current, or if the year is the same day of the same year
+					   (preg_match("/[oYy]/", $c) && (($end[$c] === $start[$c] && $end[$c] == $current[$c]) || $is_same_day)) #when doing $dtend, will be FmMn; remember we need to keep track
+						 ||
+					   #Remove days of month and months if same day of same year
+					   ($is_same_day && preg_match('/[FmMndDjlNSw]/', $c))
+						 ||
+					   #Remove minutes if they are zero
+					   (preg_match("/[i]/", $c) && preg_match('/^0*$/', $end[$c])))
+					{
+						#If the value is the same as the start time, then remove the and the surrounding brackets
+						$dtend = preg_replace("/\[[^\[\]$formatChars]*${c}[^\[\]$formatChars]*\]/s", '', $dtend);
+					}
+					else {
+						#If field provided, remove optional-delimiters and inject microformats
+						$dtend = preg_replace("/\[([^\[\]$formatChars]*)$c([^\[\]$formatChars]*)\]/s", "$1$c$2", $dtend);
+					}
 				}
 			}
+			$dtend = trim($dtend);
 			
-			list($path, $search) = split('\?', $original_url);
+			#echo "<br><font color=blue>" . date('Ymd\THis', (int)get_post_time('U', true) + intval($duration)) . '</font><br>';
 			
-			#Compose next and previous permalinks
-			if(get_option('permalink_structure')){
-				$search = preg_replace('{(\&)?eventscategory-position=-?\d+}', '$1', $search);
-				$search = preg_replace('{^&}', '', $search);
-				
-				$past_slug = get_option('eventscategory_past_slug');
-				$future_slug = get_option('eventscategory_future_slug');
-				
-				$path = preg_replace('{(?<=/)page/(\d+/)?$}', '', $path);
-				$path = preg_replace("{(?<=/)($future_slug|$past_slug)/(\d+/)?$}", '', $path);
-				
-				#Next upcoming events page has no future or past slug
-				if($new_position == 0)
-					$original_url = "$path?$search";
-				#Second page of future events has slug 'future' added; third page and above of future events has future/[paged]
-				if($new_position > 0)
-					$original_url = $path . $future_slug . '/' . ($new_position >= 1 ? $new_position+1 . '/' : '') . "?$search";
-				#Second page of [ast events has slug 'past' added; third page and above of past events has past/[paged]
-				else if($new_position < 0)
-					$original_url = $path . $past_slug . '/' . ($new_position < -1 ? abs($new_position) . '/' : '') . "?$search";
-				
-				$original_url = preg_replace('{\?$}', '', $original_url);
-			}
-			#Compose links when permalinks aren't enabled
-			else {
-				$search = preg_replace('{&?(eventscategory-position|paged|cat|page_id)=[^&]*}', '', $search);
-				
-				$original_url = "$path?cat=" . get_query_var('cat');
-				if($new_position)
-					$original_url .= '&eventscategory-position=' . $new_position;
-				if($search)
-					$original_url .= "&$search";
-			}
+			$output .= '<time class="dtend" datetime="' . date('Ymd\THis', $endTimestamp) . 'Z">';
+			$output .= date($dtend, $endTimestamp);
+			$output .= '</time>';
 		}
+		
+		$gmt_offset = get_option('gmt_offset');
+		$timezone = get_option('eventscategory_timezone');
+		$timezone_dst = get_option('eventscategory_timezone_dst');
+		
+		//Big issue: We need to be able to determine if an arbitrary date is in daylight savings
+		//We need to automatically update gmt_offset when DST starts and ends
+		//We need to automatically set daylight savings time!!! This is a core feature.
+		$is_dst = date('I', $endTimestamp);
+		
+		#T or e: Timezone identifiers
+		$dttz = preg_replace('{(?<!\\\\)[Te]}', '\\' . join('\\', preg_split('//', $is_dst ? $timezone_dst : $timezone)), $dttz);
+		#Z: Timezone offset in seconds. The offset for timezones west of UTC is always negative, and for those east of UTC is always positive.
+		$dttz = preg_replace('{(?<!\\\\)Z}', $gmt_offset*3600, $dttz);
+		#O: Difference to Greenwich time (GMT) in hours
+		$offsetStr = ($gmt_offset < 0 ? '-' : '+') . sprintf("%04d", abs($gmt_offset) * 100);
+		$dttz = preg_replace('{(?<!\\\\)O}', $offsetStr, $dttz);
+		#P: Difference to Greenwich time (GMT) with colon between hours and minutes
+		$offsetStr = substr($offsetStr, 0, strlen($offsetStr)-2) . ':' . substr($offsetStr, strlen($offsetStr)-2);
+		$dttz = preg_replace('{(?<!\\\\)P}', $offsetStr, $dttz);
+		
+		if($dttz){
+			$output .= '<span class="timezone">';
+			#if($duration)
+			#	$output .= date($dttz, $endTimestamp);
+			#else
+				$output .= date($dttz, $endTimestamp);
+			$output .= '</span>';
+		}
+		#echo "<font color=red>$duration</font>";
+		return $output;
 	}
-	return $original_url;
+	else {
+		trigger_error('<em style="color:red">' . sprintf(__('Invalid date format: %s', 'events-category'), $options[$number]['date_format']) . '</span>');
+		return false;
+	}
 }
-add_filter('clean_url', 'eventscategory_clean_url', 10, 3);
 
 
-require(dirname(__FILE__) . '/widgets.php'); #TODO
-require(dirname(__FILE__) . '/feeds.php'); #TODO
-require(dirname(__FILE__) . '/admin.php'); #TODO
-require(dirname(__FILE__) . '/template-tags.php');
+
+
+
+#require(dirname(__FILE__) . '/widgets.php'); #TODO
+#require(dirname(__FILE__) . '/feeds.php'); #TODO
+#require(dirname(__FILE__) . '/admin.php'); #TODO
+#require(dirname(__FILE__) . '/template-tags.php');
 
 ?>

@@ -1,16 +1,15 @@
 === Events Category ===
 Contributors: westonruter
-Tags: events, calendar, posts
-Tested up to: 2.6.2
+Tags: events, calendar, Google Calendar
+Tested up to: 2.8
+Requires at least: 2.8
 Stable tag: 0.4
 
 Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts
 to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp
-is used as the time stamp. Upcoming events widget included. HTML output contains hCalendar, hCard, geo, and adr microformats.
+is used as the time stamp. <del>Upcoming events widget included. HTML output contains hCalendar, hCard, geo, and adr microformats.</del>
 
 == Description ==
-
-*Notice: This plugin is not being actively maintained. Other priorities have arisen which have forced development to discontinue. Being open source and free, you are of course free to take the code and improve upon it; if you are a developer and would like to be added as a commiter to this plugin, please [contact me](http://weston.ruter.net/contact/).*
 
 Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts
 to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp
@@ -106,22 +105,7 @@ The following example includes hCalendar and other microformats if the post bein
 Please locate the file <code>example-templates/single.php</code> in the plugin.
 
 
-= Changelog =
-*2008-10-10: 0.4*
-* Large re-write and re-development for WordPress 2.6
-
-*2008-02-13: 0.1 (beta)*
-
-* <code>is_events_category()</code> now accepts arrays of category IDs or category objects so that <code>is_events_category(get_the_category())</code> can be used in the single.php template.
-* Future events posts now no longer appear on the default posts page nor in the main posts feed.
-* Event feeds (RSS2 and iCal) are now automatically added to each page.
-* Event location in iCal feed has been improved
-
-*2008-02-12: 0.1 (alpha)*
-
-* Initial version released
-
-= Todo =
+== Todo (old) ==
 1. Seconds should be forbidden in the format, because if the minutes are hidden, the seconds will look like minutes? Or we can only remove the [i] if the [s] is 0
 1. Tabbing among the events category tabs needs to be resolved (hitting tab from title should go to the start date)
 1. Javascript validation of data needed, including ensuring that second date and time should maintain diff from first when the first is modified
@@ -153,3 +137,22 @@ Please locate the file <code>example-templates/single.php</code> in the plugin.
 1. **Significant feature:** Event Registration
 	1. Add support for keeping track of attendees; RSVP status may be assigned by registered users via the comments form: http://microformats.org/wiki/hcalendar-brainstorming
 	1. iCal feed should include this registrant data
+
+
+
+== Changelog ==
+
+= 2009-08-21: 0.5 =
+* Complete re-write for WordPress 2.8, integration and dependence on Google Calendar.
+
+= 2008-10-10: 0.4 =
+* Large re-write and re-development for WordPress 2.6
+
+= 2008-02-13: 0.1 (beta) =
+* <code>is_events_category()</code> now accepts arrays of category IDs or category objects so that <code>is_events_category(get_the_category())</code> can be used in the single.php template.
+* Future events posts now no longer appear on the default posts page nor in the main posts feed.
+* Event feeds (RSS2 and iCal) are now automatically added to each page.
+* Event location in iCal feed has been improved
+
+= 2008-02-12: 0.1 (alpha) =
+* Initial version released
