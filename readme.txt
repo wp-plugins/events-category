@@ -2,7 +2,7 @@
 Contributors: westonruter
 Tags: events, calendar, posts
 Tested up to: 2.6.2
-Stable tag: trunk
+Stable tag: 0.4
 
 Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts
 to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp
