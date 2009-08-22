@@ -29,7 +29,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  * @todo Prevent events posts from getting orphaned?
  */
 
-
 ###### Initialization ########################################################################
 
 # Load up the localization file if we're using WordPress in a different language
@@ -50,11 +49,10 @@ add_option('eventscategory_date_format', $eventscategory_default_main_date_forma
  * Activate Events Category plugin
  */
 function eventscategory_activate(){
-	
+	print "eventscategory_activate\n";
 	// Make sure that the system supports this plugin
-	if(!class_exists('DOMDocument')){
-		trigger_error(__("It appears that you are using PHP4 and thus do not have the DOMDocument class available; please upgrade to PHP5."));
-	}
+	if(!class_exists('DOMDocument'))
+		die(__("It appears that you are using PHP4 and thus do not have the DOMDocument class available; please upgrade to PHP5."));
 
 	// Get the existing event category or create it
 	$eventsCat = null;
@@ -88,7 +86,8 @@ function eventscategory_activate(){
 	}
 	
 	// Schedule an event to update the Google Calendar feeds
-	wp_schedule_event(time(), 'hourly', 'eventscategory_update_gcal');
+	wp_schedule_event(time()+3600, 'hourly', 'eventscategory_update_gcal');
+	do_action('eventscategory_update_gcal');
 }
 register_activation_hook(__FILE__, 'eventscategory_activate');
 
@@ -136,8 +135,9 @@ add_action('save_post', 'eventscategory_action_save_post', 10, 2);
  */
 function eventscategory_update_gcal_action(){
 	global $wpdb;
+	file_put_contents(TEMPLATEPATH . '/temp.txt', 'eventscategory_update_gcal_action : '.  date('r') . "\n", FILE_APPEND);
 	if(!class_exists('DOMDocument'))
-		trigger_error(__("DOMDocument not available. Please ensure using PHP5.", 'events-category'));
+		die(__("DOMDocument not available. Please ensure using PHP5.", 'events-category'));
 	
 	// Remove filter that deletes _gcal_updated post meta (since we're not manually saving posts)
 	remove_action('save_post', 'eventscategory_action_save_post_delete_gcal_updated');
@@ -185,7 +185,7 @@ function eventscategory_update_gcal_action(){
 		// note that whenever someone saves a post manually, this postmeta is deleted so
 		// that this will not get skipped
 		if(!empty($post['ID']) && get_post_meta($post['ID'], '_gcal_updated', true) == $postmeta['_gcal_updated']){
-			print "SKIPPING: " . trim($xpath->query('.//atom:title', $entry)->item(0)->textContent) . "<br>";
+			#print "SKIPPING: " . trim($xpath->query('.//atom:title', $entry)->item(0)->textContent) . "<br>";
 			continue;
 		}
 		
@@ -257,10 +257,10 @@ function eventscategory_update_gcal_action(){
 		//continue;
 		
 		//continue;
-		print '<pre>';
-		print_r($post);
-		print_r($postmeta);
-		print '</pre>';
+		//print '<pre>';
+		//print_r($post);
+		//print_r($postmeta);
+		//print '</pre>';
 		//print '<hr>';
 		
 		$post['ID'] = wp_update_post($post);
@@ -365,7 +365,7 @@ function in_events_category($post_id = 0){
 function eventscategory_filter_posts_join($join){
 	global $wpdb;
 	if(!is_admin() && is_events_category()){
-		$join .= " LEFT JOIN $wpdb->postmeta eventscategorypm ON eventscategorypm.post_id = $wpdb->posts.ID AND eventscategorypm.meta_key = '_gcal_duration' ";
+		$join .= " LEFT JOIN $wpdb->postmeta eventscategory_duration ON eventscategory_duration.post_id = $wpdb->posts.ID AND eventscategory_duration.meta_key = '_gcal_duration' ";
 	}
 	return $join;
 }
@@ -380,17 +380,20 @@ function eventscategory_filter_posts_where($where){
 	global $wpdb;
 	if(!is_admin() && is_events_category()){
 		#TODO: We need to factor in the duration as well!
-		$now = "'2008-04-11 23:31:00'";
-		$endtime = "IF(eventscategorypm.meta_value IS NULL, $now, DATE_ADD($now, INTERVAL eventscategorypm.meta_value SECOND))"; #how do we get this _gcal_duration to be selected in the first place? LEFT JOIN?
+		$now = "'2008-04-12 08:30:00'";
+		$endtime = "IF(eventscategory_duration.meta_value IS NULL, $wpdb->posts.post_date, DATE_ADD($wpdb->posts.post_date, INTERVAL eventscategory_duration.meta_value SECOND))";
+		
 		if(!is_paged())
-			$where .= " AND $wpdb->posts.post_date >= $endtime";
+			$where .= " AND $endtime >= $now";
 		else 
-			$where .= " AND $wpdb->posts.post_date < $endtime";
+			$where .= " AND $endtime < $now";
 	}
 	return $where;
 }
 add_filter('posts_where', 'eventscategory_filter_posts_where');
 
+
+#add_filter('posts_request', create_function('$a', 'print $a; return $a;'));
 
 /**
  * When we are in future events, we should reverse the posts?
@@ -636,4 +639,3 @@ function eventscategory_get_the_time($dt_format = ''){
 #require(dirname(__FILE__) . '/admin.php'); #TODO
 #require(dirname(__FILE__) . '/template-tags.php');
 
-?>
