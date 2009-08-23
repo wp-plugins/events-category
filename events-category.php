@@ -49,7 +49,6 @@ add_option('eventscategory_date_format', $eventscategory_default_main_date_forma
  * Activate Events Category plugin
  */
 function eventscategory_activate(){
-	print "eventscategory_activate\n";
 	// Make sure that the system supports this plugin
 	if(!class_exists('DOMDocument'))
 		die(__("It appears that you are using PHP4 and thus do not have the DOMDocument class available; please upgrade to PHP5."));
@@ -274,15 +273,6 @@ function eventscategory_update_gcal_action(){
 add_action('eventscategory_update_gcal', 'eventscategory_update_gcal_action');
 
 
-function temppppp(){
-	//if(get_option('newwine_migrated')){
-		do_action('eventscategory_update_gcal');
-		exit;
-	//}
-}
-#add_action('init', 'temppppp');
-
-
 ////// HELPER FUNCTIONS //////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -379,10 +369,8 @@ add_filter('posts_join', 'eventscategory_filter_posts_join');
 function eventscategory_filter_posts_where($where){
 	global $wpdb;
 	if(!is_admin() && is_events_category()){
-		#TODO: We need to factor in the duration as well!
-		$now = "'2008-04-12 08:30:00'";
+		$now = "'2008-04-12 17:30:00'";
 		$endtime = "IF(eventscategory_duration.meta_value IS NULL, $wpdb->posts.post_date, DATE_ADD($wpdb->posts.post_date, INTERVAL eventscategory_duration.meta_value SECOND))";
-		
 		if(!is_paged())
 			$where .= " AND $endtime >= $now";
 		else 
@@ -483,21 +471,24 @@ add_filter('the_content', 'eventscategory_filter_the_content');
 
 
 /**
- * Filter the_date to provide the event time?
+ * Output the event's date and time
+ * @see get_the_event_datetime()
  */
-
-
-
-
-$eventscategory_default_main_date_format = 'F jS, [Y @] g[:i][a]{[ - ][F ][j][S, ][Y,] g[:i]a} T';
-function eventscategory_the_time($dt_format = ''){
-	echo eventscategory_get_the_time($dt_format);
+function the_event_datetime($dt_format = '', $include_time_tags = true){
+	echo get_the_event_datetime($dt_format, $include_time_tags);
 }
 
-function eventscategory_get_the_time($dt_format = ''){
+/**
+ * Return the event's date and time
+ * @param string $dt_format The extended format used by date(), bracketed stuff
+ *                          is omitted if unneeded, for example:
+ *                          F jS, [Y @] g[:i][a]{[ - ][F ][j][S, ][Y,] g[:i]a} T
+ * @param boolean $include_time_tags Whether or not <time> and related tags will be returned
+ */
+function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 	global $post, $eventscategory_default_main_date_format;
 	if(!$dt_format)
-		$dt_format = $eventscategory_default_main_date_format; #$dt_format = $eventscategory_default_main_date_format;
+		$dt_format = get_option('eventscategory_date_format'); #$dt_format = $eventscategory_default_main_date_format;
 	
 	$output = '';
 	
@@ -512,7 +503,7 @@ function eventscategory_get_the_time($dt_format = ''){
 		$gcal_startTime = get_post_meta($post->ID, '_gcal_starttime', true);
 		$gcal_endTime = get_post_meta($post->ID, '_gcal_endtime', true);
 		$startTimestamp = $gcal_startTime ? strtotime($gcal_startTime) : (int)get_the_time('U');
-		$endTimestamp = $gcal_endTime ? strtotime($gcal_endTime) : (int)get_the_time('U');
+		$endTimestamp = $gcal_endTime ? strtotime($gcal_endTime) : 0;
 
 		#NOTE: Seconds should not be allowed
 		
@@ -526,8 +517,9 @@ function eventscategory_get_the_time($dt_format = ''){
 			$start[$c] = date($c, $startTimestamp);
 		}
 		
+		#Grab all formatted values for end-date
 		$end = array();
-		if($startTimestamp != $endTimestamp){
+		if($startTimestamp != $endTimestamp && $endTimestamp){
 			foreach(preg_split('//', $formatChars) as $c){
 				$end[$c] = date($c, $endTimestamp);
 			}
@@ -539,7 +531,7 @@ function eventscategory_get_the_time($dt_format = ''){
 			foreach($matches[1] as $c){
 				if((preg_match("/[oYy]/", $c) && $current[$c] == $start[$c]) #remove year if same as current
 					 ||
-				   (preg_match("/[a]/", $c) && $start[$c] == $end[$c] && ($startTimestamp != $endTimestamp) && $is_same_day) #remove AM/PM specifier if same as end time
+				   (preg_match("/[a]/", $c) && $start[$c] == $end[$c] && ($startTimestamp != $endTimestamp && $endTimestamp) && $is_same_day) #remove AM/PM specifier if same as end time
 					 ||
 				   (preg_match("/[i]/", $c) && preg_match('/^0*$/', $start[$c])) #remove minutes if they are zero
 				   # ||
@@ -554,13 +546,11 @@ function eventscategory_get_the_time($dt_format = ''){
 				}
 			}
 		}
-		$output .= '<time class="dtstart" datetime="' . gmdate('Ymd\THis', $startTimestamp) . 'Z">';
-		#echo "<br><font color=green>" . get_post_time('Ymd\THis', true) . '</font>';
+		$output .= '<time class="dtstart" datetime="' . gmdate('Y-m-d\TH:i:s', $startTimestamp) . 'Z">';
 		$output .= date($dtstart, $startTimestamp);
 		$output .= '</time>';
-		#echo $duration;
 		#dtend: Remove all formatting characters which are redundant
-		if($startTimestamp != $endTimestamp){
+		if($startTimestamp != $endTimestamp && $endTimestamp){
 			if($dtseparator)
 				$output .= "<span class='separator'>$dtseparator</span>";
 			
@@ -586,46 +576,23 @@ function eventscategory_get_the_time($dt_format = ''){
 			}
 			$dtend = trim($dtend);
 			
-			#echo "<br><font color=blue>" . date('Ymd\THis', (int)get_post_time('U', true) + intval($duration)) . '</font><br>';
-			
-			$output .= '<time class="dtend" datetime="' . date('Ymd\THis', $endTimestamp) . 'Z">';
+			$output .= '<time class="dtend" datetime="' . date('Y-m-d\TH:i:s', $endTimestamp) . 'Z">';
 			$output .= date($dtend, $endTimestamp);
 			$output .= '</time>';
 		}
 		
-		$gmt_offset = get_option('gmt_offset');
-		$timezone = get_option('eventscategory_timezone');
-		$timezone_dst = get_option('eventscategory_timezone_dst');
-		
-		//Big issue: We need to be able to determine if an arbitrary date is in daylight savings
-		//We need to automatically update gmt_offset when DST starts and ends
-		//We need to automatically set daylight savings time!!! This is a core feature.
-		$is_dst = date('I', $endTimestamp);
-		
-		#T or e: Timezone identifiers
-		$dttz = preg_replace('{(?<!\\\\)[Te]}', '\\' . join('\\', preg_split('//', $is_dst ? $timezone_dst : $timezone)), $dttz);
-		#Z: Timezone offset in seconds. The offset for timezones west of UTC is always negative, and for those east of UTC is always positive.
-		$dttz = preg_replace('{(?<!\\\\)Z}', $gmt_offset*3600, $dttz);
-		#O: Difference to Greenwich time (GMT) in hours
-		$offsetStr = ($gmt_offset < 0 ? '-' : '+') . sprintf("%04d", abs($gmt_offset) * 100);
-		$dttz = preg_replace('{(?<!\\\\)O}', $offsetStr, $dttz);
-		#P: Difference to Greenwich time (GMT) with colon between hours and minutes
-		$offsetStr = substr($offsetStr, 0, strlen($offsetStr)-2) . ':' . substr($offsetStr, strlen($offsetStr)-2);
-		$dttz = preg_replace('{(?<!\\\\)P}', $offsetStr, $dttz);
-		
 		if($dttz){
 			$output .= '<span class="timezone">';
-			#if($duration)
-			#	$output .= date($dttz, $endTimestamp);
-			#else
-				$output .= date($dttz, $endTimestamp);
+			$output .= date($dttz, $endTimestamp);
 			$output .= '</span>';
 		}
-		#echo "<font color=red>$duration</font>";
+		
+		if(!$include_time_tags)
+			$output = strip_tags($output);
 		return $output;
 	}
 	else {
-		trigger_error('<em style="color:red">' . sprintf(__('Invalid date format: %s', 'events-category'), $options[$number]['date_format']) . '</span>');
+		trigger_error('<em style="color:red">' . sprintf(__('Invalid date format: %s', 'events-category'), $dt_format) . '</span>');
 		return false;
 	}
 }
