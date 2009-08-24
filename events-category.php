@@ -176,7 +176,9 @@ function eventscategory_update_gcal_action(){
 		die(__("No Google Calendar feed URL provided.", 'events-category'));
 	
 	$doc = new DOMDocument();
-	$xml = file_get_contents($feedURL);
+	$xml = @file_get_contents($feedURL);
+	if(!$xml)
+		return;
 	#$xml = file_get_contents(ABSPATH . '/wp-content/gcal.xml');
 	if(!$doc->loadXML($xml))
 		die(sprintf(__("Unable to parse Google Calendar XML feed: %s", 'events-category'), $feedURL));
@@ -554,19 +556,22 @@ function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 	
 	$output = '';
 	
+	$gcal_startTime = get_post_meta($post->ID, '_gcal_starttime', true);
+	$gcal_endTime = get_post_meta($post->ID, '_gcal_endtime', true);
+	$startTimestamp = $gcal_startTime ? strtotime($gcal_startTime) : (int)get_the_time('U');
+	$endTimestamp = $gcal_endTime ? strtotime($gcal_endTime) : 0;
+	if($startTimestamp == -1){ //for PHP4
+		$startTimestamp = (int)get_the_time('U');
+		$endTimestamp = 0;
+		$dt_format = str_replace('T', '', $dt_format);
+	}
+	
 	if(preg_match('/^(.+?){(?:\[(.+?)\])?(.+?)}(.+)?$/', $dt_format, $matches)){
 		$dtstart = $matches[1];
 		$dtseparator = $matches[2];
 		$dtend = $matches[3];
 		$dttz = $matches[4];
-		
 		$formatChars = 'dDjlNSwzWFmMntLoYyaABgGhHisueIOPTZcrU';
-		
-		$gcal_startTime = get_post_meta($post->ID, '_gcal_starttime', true);
-		$gcal_endTime = get_post_meta($post->ID, '_gcal_endtime', true);
-		$startTimestamp = $gcal_startTime ? strtotime($gcal_startTime) : (int)get_the_time('U');
-		$endTimestamp = $gcal_endTime ? strtotime($gcal_endTime) : 0;
-
 		#NOTE: Seconds should not be allowed
 		
 		$current = array();
