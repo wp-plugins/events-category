@@ -130,11 +130,28 @@ add_action('save_post', 'eventscategory_action_save_post', 10, 2);
 
 
 /**
+ * Workaround for PHP4 parse error
+ */
+//function _eventscategory_get_first_xpath_textcontent($xpath, $expr, $context = null){
+//	$result = $xpath->query($expr, $context);
+//	$el = $result->item(0);
+//	if(!$el)
+//		die('No result for XPath: ' . $expr);
+//	return trim($el->textContent);
+//}
+function _eventscategory_get_first_xpath_result($xpath, $expr, $context = null){
+	$result = $xpath->query($expr, $context);
+	return $result->item(0);
+}
+function _eventscategory_get_textcontent($el){
+	return trim($el->textContent);
+}
+
+/**
  * Scheduled function which gets the Google Calendar events
  */
 function eventscategory_update_gcal_action(){
 	global $wpdb;
-	file_put_contents(TEMPLATEPATH . '/temp.txt', 'eventscategory_update_gcal_action : '.  date('r') . "\n", FILE_APPEND);
 	if(!class_exists('DOMDocument'))
 		die(__("DOMDocument not available. Please ensure using PHP5.", 'events-category'));
 	
@@ -167,16 +184,16 @@ function eventscategory_update_gcal_action(){
 	$xpath->registerNamespace('atom', 'http://www.w3.org/2005/Atom');
 	$xpath->registerNamespace('gCal', 'http://schemas.google.com/gCal/2005');
 	
-	$gcal_feed_id = trim($xpath->query('./atom:id', $doc->documentElement)->item(0)->textContent);	
+	$gcal_feed_id = _eventscategory_get_textcontent(_eventscategory_get_first_xpath_result($xpath, './atom:id', $doc->documentElement)); #trim($xpath->query('./atom:id', $doc->documentElement)->item(0)->textContent);	
 	
 	foreach($xpath->query('//atom:entry') as $entry){
 		//GCal ID becomes WordPress post guid
-		$gcal_id = trim($xpath->query('.//atom:id', $entry)->item(0)->textContent);
-		$post = $wpdb->get_row($wpdb->prepare("SELECT * FROM $wpdb->posts p WHERE p.guid = %s", $gcal_id), ARRAY_A);
+		$gcal_id = _eventscategory_get_textcontent(_eventscategory_get_first_xpath_result($xpath, './/atom:id', $entry)); #trim($xpath->query('.//atom:id', $entry)->item(0)->textContent);
+		$post = $wpdb->get_row($wpdb->prepare("SELECT * FROM $wpdb->posts p WHERE p.guid = %s and p.post_type = 'post'", $gcal_id), ARRAY_A);
 		if(!$post)
 			$post = array();
 		$postmeta = array(
-			'_gcal_updated' => trim($xpath->query('.//atom:updated', $entry)->item(0)->textContent),
+			'_gcal_updated' => _eventscategory_get_textcontent(_eventscategory_get_first_xpath_result($xpath, './/atom:updated', $entry)), #trim($xpath->query('.//atom:updated', $entry)->item(0)->textContent),
 			'_gcal_feed_id' => $gcal_feed_id
 		);
 		
@@ -190,7 +207,7 @@ function eventscategory_update_gcal_action(){
 		
 		//Google Calendar overrides the title and time, but not the description
 		if(empty($post['post_title']))
-			$post['post_title'] = trim($xpath->query('.//atom:title', $entry)->item(0)->textContent);
+			$post['post_title'] = _eventscategory_get_textcontent(_eventscategory_get_first_xpath_result($xpath, './/atom:title', $entry)); #trim($xpath->query('.//atom:title', $entry)->item(0)->textContent);
 		#if(strpos($post['post_title'], 'GCal') === false)
 		#	$post['post_title'] = '[GCal] ' . $post['post_title'];
 		$post['post_type'] = 'post';
@@ -208,7 +225,7 @@ function eventscategory_update_gcal_action(){
 			$post['post_status'] = 'publish';
 		
 		//<gd:when startTime='2008-02-21T19:00:00.000-08:00' endTime='2008-02-21T22:00:00.000-08:00'/>
-		$when = $xpath->query('.//gd:when', $entry)->item(0);
+		$when = _eventscategory_get_first_xpath_result($xpath, './/gd:when', $entry); #$xpath->query('.//gd:when', $entry)->item(0);
 		if($when){
 			$post['post_date'] = str_replace('T', ' ', $when->getAttribute('startTime')); #expects localtime from Google
 			$post['post_date_gmt'] = get_gmt_from_date($post['post_date']);
@@ -220,22 +237,22 @@ function eventscategory_update_gcal_action(){
 		}
 		
 		//<gd:where valueString='2214 NE Oregon St., Portland, OR (Urban Grind)'/>
-		$where = $xpath->query('.//gd:where', $entry)->item(0);
+		$where = _eventscategory_get_first_xpath_result($xpath, './/gd:where', $entry); #$xpath->query('.//gd:where', $entry)->item(0);
 		if($where)
 			$postmeta['_gcal_where'] = $where->getAttribute('valueString');
 		
 		//<link rel='alternate' type='text/html' href='http://www.google.com/calendar/event?eid=NjNoZGZsYWoyMG5ocWYzanZvczFubWh2MWcgbmV3d2luZUBtdWx0bm9tYWguZWR1' title='alternate'/>
-		$gcalLink = $xpath->query('.//atom:link[@rel="alternate" and @type="text/html"]', $entry)->item(0);
+		$gcalLink = _eventscategory_get_first_xpath_result($xpath, './/atom:link[@rel="alternate" and @type="text/html"]', $entry); #$xpath->query('.//atom:link[@rel="alternate" and @type="text/html"]', $entry)->item(0);
 		if($gcalLink)
 			$postmeta['_gcal_alternate_link'] = $gcalLink->getAttribute('href');
 		
 		//<content type='text'>: NOTE: Must add a the_content filter to supply from _gcal_content postmeta if post_content is blank
-		$content = $xpath->query('.//atom:content', $entry)->item(0);
+		$content = _eventscategory_get_first_xpath_result($xpath, './/atom:content', $entry); #$xpath->query('.//atom:content', $entry)->item(0);
 		if($content)
 			$postmeta['_gcal_content'] = trim($content->textContent);
 		
 		//<gd:originalEvent id='ouaia8m2nved9t1d80vl88kopo' href='http://www.google.com/calendar/feeds/.../public/full/ouaia8m2nved9t1d80vl88kopo'>
-		$originalEvent = $xpath->query('.//gd:originalEvent', $entry)->item(0);
+		$originalEvent = _eventscategory_get_first_xpath_result($xpath, './/gd:originalEvent', $entry); #$xpath->query('.//gd:originalEvent', $entry)->item(0);
 		if($originalEvent)
 			$postmeta['_gcal_originalevent_id'] = $originalEvent->getAttribute('href');
 		
@@ -272,6 +289,11 @@ function eventscategory_update_gcal_action(){
 }
 add_action('eventscategory_update_gcal', 'eventscategory_update_gcal_action');
 
+function tempppp(){
+	do_action('eventscategory_update_gcal');
+	exit;
+}
+#add_action('template_redirect', 'tempppp');
 
 ////// HELPER FUNCTIONS //////////////////////////////////////////////////////////////////////////////
 
@@ -365,11 +387,13 @@ add_filter('posts_join', 'eventscategory_filter_posts_join');
 /**
  * Make sure that when querying events category, that if not paged, only the future posts are returned
  * @see eventscategory_filter_posts_join
+ * @todo Note: We should only do this if showposts != -1
  */
 function eventscategory_filter_posts_where($where){
 	global $wpdb;
 	if(!is_admin() && is_events_category()){
-		$now = "'2008-04-12 17:30:00'";
+		$now = date('"Y-m-d H:i:s"', time());
+		#$now = "'2008-04-01'";
 		$endtime = "IF(eventscategory_duration.meta_value IS NULL, $wpdb->posts.post_date, DATE_ADD($wpdb->posts.post_date, INTERVAL eventscategory_duration.meta_value SECOND))";
 		if(!is_paged())
 			$where .= " AND $endtime >= $now";
@@ -422,11 +446,17 @@ add_filter('posts_orderby', 'eventscategory_filter_posts_orderby');
 function eventscategory_filter_post_limits_request($limits){
 	//global $wp_query;
 	if(!is_admin() && is_events_category()){
+		$showposts = get_query_var('showposts');
+		$posts_per_page = $showposts ? $showposts : get_query_var('posts_per_page');
+		
 		if(is_paged()){
 			$limits = 'LIMIT ' .
-			           (get_query_var('paged') - 2) * get_query_var('posts_per_page') .
+			           (get_query_var('paged') - 2) * $posts_per_page .
 					   ', ' .
-					   get_query_var('posts_per_page');
+					   $posts_per_page;
+		}
+		else if($showposts){
+			$limits = 'LIMIT 0, ' . $showposts;
 		}
 		else {
 			$limits = '';
@@ -468,6 +498,38 @@ function eventscategory_filter_the_content($content){
 	return $content;
 }
 add_filter('the_content', 'eventscategory_filter_the_content');
+
+
+/**
+ * Output the event location
+ * @see get_the_event_location()
+ */
+function the_event_location($include_gmaps_link = true, $before = '', $after = ''){
+	echo get_the_event_location($include_gmaps_link, $before, $after);
+}
+
+/**
+ * Get the event location; retreives the value of _gcal_where postmeta
+ * @param boolean $include_gmaps_link If true, then a link will be included to Google Maps, with target=_blank
+ */
+function get_the_event_location($include_gmaps_link = true, $before = '', $after = ''){
+	global $post;
+	$output = '';
+	$where = get_post_meta($post->ID, '_gcal_where', true);
+	if(!$where)
+		return '';
+	
+	if($include_gmaps_link)
+		$output .= "<a target='_blank' href=\"http://maps.google.com/?q=" . esc_attr(urlencode($where)) . "\">"; //. " loc: Portland, OR"
+	$output .= esc_attr($where);
+	if($include_gmaps_link)
+		$output .= "</a>";
+
+	return $before.$output.$after;
+}
+
+
+
 
 
 /**
