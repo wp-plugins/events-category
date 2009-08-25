@@ -50,8 +50,10 @@ add_option('eventscategory_date_format', $eventscategory_default_main_date_forma
  */
 function eventscategory_activate(){
 	// Make sure that the system supports this plugin
+	if(floatval(phpversion()) < 5.1)
+		die(__(sprintf("You are using an old version of PHP (%s): you must have 5.1 or greater.", phpversion()), 'events-category'));
 	if(!class_exists('DOMDocument'))
-		die(__("It appears that you are using PHP4 and thus do not have the DOMDocument class available; please upgrade to PHP5."));
+		die(__("It appears that you are using PHP4 and thus do not have the DOMDocument class available; please upgrade to PHP5.", 'events-category'));
 
 	// Get the existing event category or create it
 	$eventsCat = null;
