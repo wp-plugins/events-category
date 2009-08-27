@@ -179,9 +179,11 @@ function eventscategory_update_gcal_action(){
 	
 	$doc = new DOMDocument();
 	$xml = @file_get_contents($feedURL);
+	if(!$xml && file_exists(ABSPATH . '/wp-content/gcal.xml')){ //for debugging
+		$xml = file_get_contents(ABSPATH . '/wp-content/gcal.xml');
+	}
 	if(!$xml)
 		return;
-	#$xml = file_get_contents(ABSPATH . '/wp-content/gcal.xml');
 	if(!$doc->loadXML($xml))
 		die(sprintf(__("Unable to parse Google Calendar XML feed: %s", 'events-category'), $feedURL));
 	$xpath = new DOMXPath($doc);
