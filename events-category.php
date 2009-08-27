@@ -44,7 +44,6 @@ add_option('eventscategory_date_format', $eventscategory_default_main_date_forma
 #Including the year: M. j[, Y][, g][:i][a]{[ – ][M. ][j, ][Y, ]g[:i]a} T
 
 
-
 /**
  * Activate Events Category plugin
  */
@@ -194,7 +193,10 @@ function eventscategory_update_gcal_action(){
 	
 	foreach($xpath->query('//atom:entry') as $entry){
 		//GCal ID becomes WordPress post guid
+		#TODO: Use uid instead! <gCal:uid value='9psstv7ef4jupd631jn59t2os8@google.com'/>
 		$gcal_id = _eventscategory_get_textcontent(_eventscategory_get_first_xpath_result($xpath, './/atom:id', $entry)); #trim($xpath->query('.//atom:id', $entry)->item(0)->textContent);
+		
+		
 		$post = $wpdb->get_row($wpdb->prepare("SELECT * FROM $wpdb->posts p WHERE p.guid = %s and p.post_type = 'post'", $gcal_id), ARRAY_A);
 		if(!$post)
 			$post = array();
@@ -551,7 +553,11 @@ function the_event_datetime($dt_format = '', $include_time_tags = true){
  * @param string $dt_format The extended format used by date(), bracketed stuff
  *                          is omitted if unneeded, for example:
  *                          F jS, [Y @] g[:i][a]{[ - ][F ][j][S, ][Y,] g[:i]a} T
+ *                          F jS, [Y @] <g[:i][a]>{[ - ][F ][j][S, ][Y,] g[:i]a} T
  * @param boolean $include_time_tags Whether or not <time> and related tags will be returned
+ * @todo We need to make the datetime formats get placed inside of their own delimiters, perhaps <>
+ * @todo For all day events, we should not show the end time if it is the same.
+ * @todo We should have multiple time formats according to the different time sitatuions
  */
 function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 	global $post, $eventscategory_default_main_date_format;
@@ -562,6 +568,12 @@ function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 	
 	$gcal_startTime = get_post_meta($post->ID, '_gcal_starttime', true);
 	$gcal_endTime = get_post_meta($post->ID, '_gcal_endtime', true);
+	$is_all_day = !preg_match('/^\d\d\d\d-\d\d-\d\d.\d\d/', $gcal_startTime ? $gcal_startTime : $post->post_date);
+	if(!$is_all_day){
+		$is_all_day = preg_match('/^\d\d\d\d-\d\d-\d\d.00:00/', $gcal_startTime ? $gcal_startTime : $post->post_date)
+		           && preg_match('/^\d\d\d\d-\d\d-\d\d.00:00/', $gcal_endTime ? $gcal_endTime : $post->post_date);
+	}
+	
 	$startTimestamp = $gcal_startTime ? strtotime($gcal_startTime) : (int)get_the_time('U');
 	$endTimestamp = $gcal_endTime ? strtotime($gcal_endTime) : 0;
 	if($startTimestamp == -1){ //for PHP4
@@ -570,7 +582,17 @@ function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 		$dt_format = str_replace('T', '', $dt_format);
 	}
 	
-	if(preg_match('/^(.+?){(?:\[(.+?)\])?(.+?)}(.+)?$/', $dt_format, $matches)){
+	//Remove all time formatting if event is all-day
+	#TODO: The date-time format should be extended to search for date-times
+	if($is_all_day){
+		#print "<p style='color:red'>ALLDAY</p>";
+		$dt_format = preg_replace('/[@gia\:T]/', '', $dt_format); #MORE TIME FORMATS ARE NEEDED
+		#print "<pre>$dt_format</pre>";
+		$dt_format = preg_replace('/,?\s*\[\]/', '', $dt_format);
+		#print "<pre>$dt_format</pre>";
+	}
+	
+	if(preg_match('/^(.+?){(?:\[(.*?)\])?(.+?)}(.+)?$/', $dt_format, $matches)){
 		$dtstart = $matches[1];
 		$dtseparator = $matches[2];
 		$dtend = $matches[3];
@@ -618,7 +640,7 @@ function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 			}
 		}
 		$output .= '<time class="dtstart" datetime="' . gmdate('Y-m-d\TH:i:s', $startTimestamp) . 'Z">';
-		$output .= date($dtstart, $startTimestamp);
+		$output .= trim(date($dtstart, $startTimestamp), ','); #TODO Trim
 		$output .= '</time>';
 		#dtend: Remove all formatting characters which are redundant
 		if($startTimestamp != $endTimestamp && $endTimestamp){
@@ -648,7 +670,7 @@ function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 			$dtend = trim($dtend);
 			
 			$output .= '<time class="dtend" datetime="' . date('Y-m-d\TH:i:s', $endTimestamp) . 'Z">';
-			$output .= date($dtend, $endTimestamp);
+			$output .= rtrim(date($dtend, $endTimestamp), ','); #TODO! Trim
 			$output .= '</time>';
 		}
 		
