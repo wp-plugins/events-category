@@ -2,8 +2,8 @@
 /*
 Plugin Name: Events Category
 Plugin URI: http://wordpress.org/extend/plugins/events-category/
-Description: Seamless event calendar solution which extends the basic WordPress functionality to enable future-dated posts to be listed within the blog chronology when they are assigned to a particular post category. The a future-dated post's timestamp is used as the event date. <em>This plugin is developed at <a href="http://www.shepherd-interactive.com/" title="Shepherd Interactive specializes in web design and development in Portland, Oregon">Shepherd Interactive</a> for the benefit of the community.</em>
-Version: 0.5
+Description: Seamless event calendar solution which imports events from a Google Calendar and stores them in WordPress as published posts in an "Events" category with publish dates equal to the event's start time. First page of Events category displays all future events in ascending order. Second page shows <code>posts_per_page</code> most recently passed events in descending order: last page of Events category shows the oldest event. <em>This plugin is developed at <a href="http://www.shepherd-interactive.com/" title="Shepherd Interactive specializes in web design and development in Portland, Oregon">Shepherd Interactive</a> for the benefit of the community.</em>
+Version: 0.5 (unstable)
 Author: Weston Ruter
 Author URI: http://weston.ruter.net/
 Copyright: 2008, Weston Ruter, Shepherd Interactive
@@ -27,19 +27,33 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 /**
  * @todo We can use the originalEvent to provide a linkage between events (this event is part of a reoccuring )
  * @todo Prevent events posts from getting orphaned?
+ * @todo Add note to Edit Post page that indicates that the current post is linked to a Google Calendar event, and provide a link to that event.
  */
 
 ###### Initialization ########################################################################
 
 # Load up the localization file if we're using WordPress in a different language
 # Place it in the "localization" folder and name it "events-category-[value in wp-config].mo"
-load_plugin_textdomain('events-category', PLUGINDIR . '/events-category/i18n');
+define('EVENTSCATEGORY_TEXT_DOMAIN', 'events-category');
+load_plugin_textdomain(EVENTSCATEGORY_TEXT_DOMAIN, PLUGINDIR . '/events-category/i18n');
 
-add_option('eventscategory_default_name', __('Events', 'events-category'));
-add_option('eventscategory_default_slug', __('events', 'events-category'));
+add_option('eventscategory_version', 0.5);
+add_option('eventscategory_default_name', __('Events', EVENTSCATEGORY_TEXT_DOMAIN));
+add_option('eventscategory_default_slug', __('events', EVENTSCATEGORY_TEXT_DOMAIN));
 add_option('eventscategory_cat_id', 0);
+add_option('eventscategory_gcal_feed_url', '');
 
-$eventscategory_default_main_date_format = __('F jS, [Y @] g[:i][a]{[ - ][F ][j][S, ][Y,] g[:i]a} T', 'events-category');
+#single day without time: F jS[, Y]
+#day span without time: F jS, [Y @] - [F ][j][S, ][Y,] g[:i]a T
+#single day with time span: F jS, [Y @] g[:i][a] - g[:i]a T
+#day span with time span: F jS, [Y @] g[:i][a] - [F ][j][S, ][Y,] g[:i]a T
+
+$eventscategory_default_date_format_single_day_without_time = __('F jS[, Y]', EVENTSCATEGORY_TEXT_DOMAIN);
+$eventscategory_default_date_format_day_span_without_time   = __('F jS, [Y @] - [F ][j][S][, Y]', EVENTSCATEGORY_TEXT_DOMAIN);
+$eventscategory_default_date_format_single_day_with_time    = __('F jS, [Y @] g[:i][a] - g[:i]a T', EVENTSCATEGORY_TEXT_DOMAIN);
+$eventscategory_default_date_format_day_span_with_time      = __('F jS, [Y @] g[:i][a]{ - [F ][j][S, ][Y,] g[:i]a} T', EVENTSCATEGORY_TEXT_DOMAIN);
+
+$eventscategory_default_main_date_format = __('F jS, [Y @] g[:i][a]{[ - ][F ][j][S, ][Y,] g[:i]a} T', EVENTSCATEGORY_TEXT_DOMAIN);
 add_option('eventscategory_date_format', $eventscategory_default_main_date_format);
 #Including the year: M. j[, Y][, g][:i][a]{[ – ][M. ][j, ][Y, ]g[:i]a} T
 
@@ -50,9 +64,9 @@ add_option('eventscategory_date_format', $eventscategory_default_main_date_forma
 function eventscategory_activate(){
 	// Make sure that the system supports this plugin
 	if(floatval(phpversion()) < 5.1)
-		die(__(sprintf("You are using an old version of PHP (%s): you must have 5.1 or greater.", phpversion()), 'events-category'));
+		die(__(sprintf("You are using an old version of PHP (%s): you must have 5.1 or greater.", phpversion()), EVENTSCATEGORY_TEXT_DOMAIN));
 	if(!class_exists('DOMDocument'))
-		die(__("It appears that you are using PHP4 and thus do not have the DOMDocument class available; please upgrade to PHP5.", 'events-category'));
+		die(__("It appears that you are using PHP4 and thus do not have the DOMDocument class available; please upgrade to PHP5.", EVENTSCATEGORY_TEXT_DOMAIN));
 
 	// Get the existing event category or create it
 	$eventsCat = null;
@@ -131,15 +145,11 @@ add_action('save_post', 'eventscategory_action_save_post', 10, 2);
 
 
 /**
- * Workaround for PHP4 parse error
+ * Workaround for PHP4 parse error in which $multiple->properties->can->be->chained()
+ * Prevents fatal error. Plugin still won't be activatable if using PHP4, but if a DB dump
+ * is performed and the plugin is already active, at least a fatal error won't occur and
+ * the plugin will work to a limited extent.
  */
-//function _eventscategory_get_first_xpath_textcontent($xpath, $expr, $context = null){
-//	$result = $xpath->query($expr, $context);
-//	$el = $result->item(0);
-//	if(!$el)
-//		die('No result for XPath: ' . $expr);
-//	return trim($el->textContent);
-//}
 function _eventscategory_get_first_xpath_result($xpath, $expr, $context = null){
 	$result = $xpath->query($expr, $context);
 	return $result->item(0);
@@ -148,13 +158,14 @@ function _eventscategory_get_textcontent($el){
 	return trim($el->textContent);
 }
 
+
 /**
  * Scheduled function which gets the Google Calendar events
  */
 function eventscategory_update_gcal_action(){
 	global $wpdb;
 	if(!class_exists('DOMDocument'))
-		die(__("DOMDocument not available. Please ensure using PHP5.", 'events-category'));
+		die(__("DOMDocument not available. Please ensure using PHP5.", EVENTSCATEGORY_TEXT_DOMAIN));
 	
 	// Remove filter that deletes _gcal_updated post meta (since we're not manually saving posts)
 	remove_action('save_post', 'eventscategory_action_save_post_delete_gcal_updated');
@@ -162,7 +173,7 @@ function eventscategory_update_gcal_action(){
 	$eventsCatID = get_option('eventscategory_cat_id');
 	$eventsCat = get_category($eventsCatID);
 	if(!$eventsCat)
-		die(__("Events category not supplied (option eventscategory_cat_id).", 'events-category'));
+		die(__("Events category not supplied (option eventscategory_cat_id).", EVENTSCATEGORY_TEXT_DOMAIN));
 	
 	$feedQueryArgs = array(
 		'singleevents' => 'true',
@@ -174,7 +185,7 @@ function eventscategory_update_gcal_action(){
 	$feedURL = add_query_arg($feedQueryArgs, preg_replace('/\?.*/', '', get_option('eventscategory_gcal_feed_url')));
 	//$feedURL = 'http://www.google.com/calendar/feeds/.../public/full-noattendees';
 	if(!$feedURL)
-		die(__("No Google Calendar feed URL provided.", 'events-category'));
+		die(__("No Google Calendar feed URL provided.", EVENTSCATEGORY_TEXT_DOMAIN));
 	
 	$doc = new DOMDocument();
 	$xml = @file_get_contents($feedURL);
@@ -184,7 +195,7 @@ function eventscategory_update_gcal_action(){
 	if(!$xml)
 		return;
 	if(!$doc->loadXML($xml))
-		die(sprintf(__("Unable to parse Google Calendar XML feed: %s", 'events-category'), $feedURL));
+		die(sprintf(__("Unable to parse Google Calendar XML feed: %s", EVENTSCATEGORY_TEXT_DOMAIN), $feedURL));
 	$xpath = new DOMXPath($doc);
 	$xpath->registerNamespace('atom', 'http://www.w3.org/2005/Atom');
 	$xpath->registerNamespace('gCal', 'http://schemas.google.com/gCal/2005');
@@ -538,8 +549,6 @@ function get_the_event_location($include_gmaps_link = true, $before = '', $after
 
 
 
-
-
 /**
  * Output the event's date and time
  * @see get_the_event_datetime()
@@ -561,10 +570,11 @@ function the_event_datetime($dt_format = '', $include_time_tags = true){
  */
 function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 	global $post, $eventscategory_default_main_date_format;
+	$output = '';
+	
 	if(!$dt_format)
 		$dt_format = get_option('eventscategory_date_format'); #$dt_format = $eventscategory_default_main_date_format;
-	
-	$output = '';
+	$dt_format = apply_filters('eventscategory_date_format', $dt_format);
 	
 	$gcal_startTime = get_post_meta($post->ID, '_gcal_starttime', true);
 	$gcal_endTime = get_post_meta($post->ID, '_gcal_endtime', true);
@@ -685,7 +695,7 @@ function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 		return $output;
 	}
 	else {
-		trigger_error('<em style="color:red">' . sprintf(__('Invalid date format: %s', 'events-category'), $dt_format) . '</span>');
+		trigger_error('<em style="color:red">' . sprintf(__('Invalid date format: %s', EVENTSCATEGORY_TEXT_DOMAIN), $dt_format) . '</span>');
 		return false;
 	}
 }
@@ -698,4 +708,4 @@ function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 #require(dirname(__FILE__) . '/feeds.php'); #TODO
 #require(dirname(__FILE__) . '/admin.php'); #TODO
 #require(dirname(__FILE__) . '/template-tags.php');
-
+require(dirname(__FILE__) . '/admin.php');
