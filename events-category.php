@@ -48,13 +48,29 @@ add_option('eventscategory_gcal_feed_url', '');
 #single day with time span: F jS, [Y @] g[:i][a] - g[:i]a T
 #day span with time span: F jS, [Y @] g[:i][a] - [F ][j][S, ][Y,] g[:i]a T
 
-$eventscategory_default_date_format_single_day_without_time = __('F jS[, Y]', EVENTSCATEGORY_TEXT_DOMAIN);
-$eventscategory_default_date_format_day_span_without_time   = __('F jS, [Y @] - [F ][j][S][, Y]', EVENTSCATEGORY_TEXT_DOMAIN);
-$eventscategory_default_date_format_single_day_with_time    = __('F jS, [Y @] g[:i][a] - g[:i]a T', EVENTSCATEGORY_TEXT_DOMAIN);
-$eventscategory_default_date_format_day_span_with_time      = __('F jS, [Y @] g[:i][a]{ - [F ][j][S, ][Y,] g[:i]a} T', EVENTSCATEGORY_TEXT_DOMAIN);
+/*
 
-$eventscategory_default_main_date_format = __('F jS, [Y @] g[:i][a]{[ - ][F ][j][S, ][Y,] g[:i]a} T', EVENTSCATEGORY_TEXT_DOMAIN);
+F jS, [Y @] g[:i][a]{[ - ][F ][j][S, ][Y,] g[:i]a} T
+
+*/
+
+#$eventscategory_default_date_format_single_day_without_time = __('F jS[, Y]', EVENTSCATEGORY_TEXT_DOMAIN);
+#$eventscategory_default_date_format_day_span_without_time   = __('F jS, [Y @] - [F ][j][S][, Y]', EVENTSCATEGORY_TEXT_DOMAIN);
+#$eventscategory_default_date_format_single_day_with_time    = __('F jS, [Y @] g[:i][a] - g[:i]a T', EVENTSCATEGORY_TEXT_DOMAIN);
+#$eventscategory_default_date_format_day_span_with_time      = __('F jS, [Y @] g[:i][a]{ - [F ][j][S, ][Y,] g[:i]a} T', EVENTSCATEGORY_TEXT_DOMAIN);
+
+/**
+ * Extended PHP date() format for events with times
+ */
+$eventscategory_default_main_datetime_format = __('F jS, [Y @] g[:i][a]{[ - ][F ][j][S, ][Y,] g[:i]a} T', EVENTSCATEGORY_TEXT_DOMAIN);
+add_option('eventscategory_datetime_format', $eventscategory_default_main_datetime_format);
+
+/**
+ * Extended PHP date() format for allday events
+ */
+$eventscategory_default_main_date_format     = __('F jS[, Y] {[ - ][F ][j][S][, Y]}', EVENTSCATEGORY_TEXT_DOMAIN);
 add_option('eventscategory_date_format', $eventscategory_default_main_date_format);
+
 #Including the year: M. j[, Y][, g][:i][a]{[ – ][M. ][j, ][Y, ]g[:i]a} T
 
 
