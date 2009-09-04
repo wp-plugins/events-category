@@ -28,6 +28,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  * @todo We can use the originalEvent to provide a linkage between events (this event is part of a reoccuring )
  * @todo Prevent events posts from getting orphaned?
  * @todo Add note to Edit Post page that indicates that the current post is linked to a Google Calendar event, and provide a link to that event.
+ * @todo Why is the month and year not getting stripped out of the start time if it is the same as the end?
+ * @todo Clean up the naming of the start/end span option. Figure out what filters to apply and when.
  */
 
 ###### Initialization ########################################################################
@@ -56,6 +58,11 @@ add_option('eventscategory_datetime_format', $eventscategory_default_datetime_fo
 $eventscategory_default_date_format     = __('F jS[, Y]{[F ][j][S][, Y]}', EVENTSCATEGORY_TEXT_DOMAIN);
 add_option('eventscategory_date_format', $eventscategory_default_date_format);
 
+/**
+ * Provide option for demarkating where start time stops and end time begins
+ */
+$eventscategory_default_start_end_separator = __(' - ', EVENTSCATEGORY_TEXT_DOMAIN);
+add_option('eventscategory_start_end_separator', $eventscategory_default_start_end_separator);
 
 /**
  * Activate Events Category plugin
@@ -573,7 +580,7 @@ function the_event_datetime($dt_format = ''){
  * @todo For all day events, we should not show the end time if it is the same.
  * @todo We should have multiple time formats according to the different time sitatuions
  */
-function get_the_event_datetime($dt_format = '', $event_span_separator = "<span class='separator'> - </span>"){
+function get_the_event_datetime($dt_format = '', $span_separator = "<span class='separator'>%s</span>"){
 	global $post;
 	$output = '';
 	
@@ -652,7 +659,9 @@ function get_the_event_datetime($dt_format = '', $event_span_separator = "<span 
 		$output .= '</time>';
 		#dtend: Remove all formatting characters which are redundant
 		if($startTimestamp != $endTimestamp && $endTimestamp){
-			$output .= apply_filters('eventscategory_event_span_separator', $event_span_separator); #$output .= "<span class='separator'>$dtseparator</span>";
+			$output .= apply_filters('eventscategory_event_span_separator',
+									 sprintf($span_separator,
+											 get_option('eventscategory_start_end_separator'))); #$output .= "<span class='separator'>$dtseparator</span>";
 			
 			if(preg_match_all("/\[[^\[\]]*?(?<!\\\\)([$formatChars])[^\[\]]*?\]/", $dtend, $matches)){
 				foreach($matches[1] as $c){

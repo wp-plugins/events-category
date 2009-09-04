@@ -124,6 +124,19 @@ ECTEXT
 					</td>
 					</th>
 				</tr>
+				<tr valign="top">
+					<th scope="row"><label for="eventscategory_start_end_separator"><?php _e("Event start/end separator", EVENTSCATEGORY_TEXT_DOMAIN) ?></label></th>
+					<td>
+						<input type="text" class="small-text" id="eventscategory_start_end_separator" name="eventscategory_start_end_separator"  value="<?php echo esc_attr(get_option('eventscategory_start_end_separator')); ?>" />
+						<span class="description">
+<?php _e(sprintf(<<<ECTEXT
+							Appears between the start date/time and the end date/time.
+ECTEXT
+, ''), EVENTSCATEGORY_TEXT_DOMAIN); ?>
+						</span>
+					</td>
+					</th>
+				</tr>
 			</table>
 			<p class="submit">
 				<input type="submit" class="button-primary" value="<?php _e('Save Changes') ?>" />
