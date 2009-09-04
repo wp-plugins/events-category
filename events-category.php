@@ -2,7 +2,7 @@
 /*
 Plugin Name: Events Category
 Plugin URI: http://wordpress.org/extend/plugins/events-category/
-Description: Seamless event calendar solution which imports events from a Google Calendar and stores them in WordPress as published posts in an "Events" category with publish dates equal to the event's start time. First page of Events category displays all future events in ascending order. Second page shows <code>posts_per_page</code> most recently passed events in descending order: last page of Events category shows the oldest event. <em>This plugin is developed at <a href="http://www.shepherd-interactive.com/" title="Shepherd Interactive specializes in web design and development in Portland, Oregon">Shepherd Interactive</a> for the benefit of the community.</em>
+Description: Seamless event calendar solution which imports events from a Google Calendar and stores them in WordPress as published posts in an "Events" category with publish dates equal to the event's start time. First page of Events category displays all future events in ascending order. Second page shows <code>posts_per_page</code> most recently passed events in descending order: last page of Events category shows the oldest event. Upon activation, <strong>visit the <a href="options-general.php?page=events-category-options">configuration page</a></strong>. <em>This plugin is developed at <a href="http://www.shepherd-interactive.com/" title="Shepherd Interactive specializes in web design and development in Portland, Oregon">Shepherd Interactive</a> for the benefit of the community.</em>
 Version: 0.5 (unstable)
 Author: Weston Ruter
 Author URI: http://weston.ruter.net/
@@ -43,35 +43,18 @@ add_option('eventscategory_default_slug', __('events', EVENTSCATEGORY_TEXT_DOMAI
 add_option('eventscategory_cat_id', 0);
 add_option('eventscategory_gcal_feed_url', '');
 
-#single day without time: F jS[, Y]
-#day span without time: F jS, [Y @] - [F ][j][S, ][Y,] g[:i]a T
-#single day with time span: F jS, [Y @] g[:i][a] - g[:i]a T
-#day span with time span: F jS, [Y @] g[:i][a] - [F ][j][S, ][Y,] g[:i]a T
-
-/*
-
-F jS, [Y @] g[:i][a]{[ - ][F ][j][S, ][Y,] g[:i]a} T
-
-*/
-
-#$eventscategory_default_date_format_single_day_without_time = __('F jS[, Y]', EVENTSCATEGORY_TEXT_DOMAIN);
-#$eventscategory_default_date_format_day_span_without_time   = __('F jS, [Y @] - [F ][j][S][, Y]', EVENTSCATEGORY_TEXT_DOMAIN);
-#$eventscategory_default_date_format_single_day_with_time    = __('F jS, [Y @] g[:i][a] - g[:i]a T', EVENTSCATEGORY_TEXT_DOMAIN);
-#$eventscategory_default_date_format_day_span_with_time      = __('F jS, [Y @] g[:i][a]{ - [F ][j][S, ][Y,] g[:i]a} T', EVENTSCATEGORY_TEXT_DOMAIN);
 
 /**
  * Extended PHP date() format for events with times
  */
-$eventscategory_default_main_datetime_format = __('F jS, [Y @] g[:i][a]{[ - ][F ][j][S, ][Y,] g[:i]a} T', EVENTSCATEGORY_TEXT_DOMAIN);
-add_option('eventscategory_datetime_format', $eventscategory_default_main_datetime_format);
+$eventscategory_default_datetime_format = __('F jS, [Y @] g[:i][a]{[F ][j][S, ][Y,] g[:i]a} T', EVENTSCATEGORY_TEXT_DOMAIN);
+add_option('eventscategory_datetime_format', $eventscategory_default_datetime_format);
 
 /**
  * Extended PHP date() format for allday events
  */
-$eventscategory_default_main_date_format     = __('F jS[, Y] {[ - ][F ][j][S][, Y]}', EVENTSCATEGORY_TEXT_DOMAIN);
-add_option('eventscategory_date_format', $eventscategory_default_main_date_format);
-
-#Including the year: M. j[, Y][, g][:i][a]{[ – ][M. ][j, ][Y, ]g[:i]a} T
+$eventscategory_default_date_format     = __('F jS[, Y]{[F ][j][S][, Y]}', EVENTSCATEGORY_TEXT_DOMAIN);
+add_option('eventscategory_date_format', $eventscategory_default_date_format);
 
 
 /**
@@ -219,16 +202,18 @@ function eventscategory_update_gcal_action(){
 	$gcal_feed_id = _eventscategory_get_textcontent(_eventscategory_get_first_xpath_result($xpath, './atom:id', $doc->documentElement)); #trim($xpath->query('./atom:id', $doc->documentElement)->item(0)->textContent);	
 	
 	foreach($xpath->query('//atom:entry') as $entry){
-		//GCal ID becomes WordPress post guid
+		//GCal uid becomes WordPress post guid
 		#TODO: Use uid instead! <gCal:uid value='9psstv7ef4jupd631jn59t2os8@google.com'/>
-		$gcal_id = _eventscategory_get_textcontent(_eventscategory_get_first_xpath_result($xpath, './/atom:id', $entry)); #trim($xpath->query('.//atom:id', $entry)->item(0)->textContent);
+		$gcal_id = _eventscategory_get_textcontent(_eventscategory_get_first_xpath_result($xpath, './atom:id', $entry)); #trim($xpath->query('./atom:id', $entry)->item(0)->textContent);
+		$uidElement = _eventscategory_get_first_xpath_result($xpath, './gCal:uid', $entry);
+		$gcal_uid = $uidElement->getAttribute('value');
+		unset($uidElement);
 		
-		
-		$post = $wpdb->get_row($wpdb->prepare("SELECT * FROM $wpdb->posts p WHERE p.guid = %s and p.post_type = 'post'", $gcal_id), ARRAY_A);
+		$post = $wpdb->get_row($wpdb->prepare("SELECT * FROM $wpdb->posts p WHERE (p.guid = %s OR p.guid = %s) and p.post_type = 'post'", $gcal_id, $gcal_uid), ARRAY_A);
 		if(!$post)
 			$post = array();
 		$postmeta = array(
-			'_gcal_updated' => _eventscategory_get_textcontent(_eventscategory_get_first_xpath_result($xpath, './/atom:updated', $entry)), #trim($xpath->query('.//atom:updated', $entry)->item(0)->textContent),
+			'_gcal_updated' => _eventscategory_get_textcontent(_eventscategory_get_first_xpath_result($xpath, './atom:updated', $entry)), #trim($xpath->query('./atom:updated', $entry)->item(0)->textContent),
 			'_gcal_feed_id' => $gcal_feed_id
 		);
 		
@@ -242,11 +227,11 @@ function eventscategory_update_gcal_action(){
 		
 		//Google Calendar overrides the title and time, but not the description
 		if(empty($post['post_title']))
-			$post['post_title'] = _eventscategory_get_textcontent(_eventscategory_get_first_xpath_result($xpath, './/atom:title', $entry)); #trim($xpath->query('.//atom:title', $entry)->item(0)->textContent);
+			$post['post_title'] = _eventscategory_get_textcontent(_eventscategory_get_first_xpath_result($xpath, './atom:title', $entry)); #trim($xpath->query('./atom:title', $entry)->item(0)->textContent);
 		#if(strpos($post['post_title'], 'GCal') === false)
 		#	$post['post_title'] = '[GCal] ' . $post['post_title'];
 		$post['post_type'] = 'post';
-		$post['guid'] = $gcal_id;
+		$post['guid'] = $gcal_uid; //$gcal_id
 		
 		//Set the creator of the post
 		if(empty($post['post_author'])){
@@ -260,7 +245,7 @@ function eventscategory_update_gcal_action(){
 			$post['post_status'] = 'publish';
 		
 		//<gd:when startTime='2008-02-21T19:00:00.000-08:00' endTime='2008-02-21T22:00:00.000-08:00'/>
-		$when = _eventscategory_get_first_xpath_result($xpath, './/gd:when', $entry); #$xpath->query('.//gd:when', $entry)->item(0);
+		$when = _eventscategory_get_first_xpath_result($xpath, './gd:when', $entry); #$xpath->query('./gd:when', $entry)->item(0);
 		if($when){
 			$post['post_date'] = str_replace('T', ' ', $when->getAttribute('startTime')); #expects localtime from Google
 			$post['post_date_gmt'] = get_gmt_from_date($post['post_date']);
@@ -272,22 +257,22 @@ function eventscategory_update_gcal_action(){
 		}
 		
 		//<gd:where valueString='2214 NE Oregon St., Portland, OR (Urban Grind)'/>
-		$where = _eventscategory_get_first_xpath_result($xpath, './/gd:where', $entry); #$xpath->query('.//gd:where', $entry)->item(0);
+		$where = _eventscategory_get_first_xpath_result($xpath, './gd:where', $entry); #$xpath->query('./gd:where', $entry)->item(0);
 		if($where)
 			$postmeta['_gcal_where'] = $where->getAttribute('valueString');
 		
 		//<link rel='alternate' type='text/html' href='http://www.google.com/calendar/event?eid=NjNoZGZsYWoyMG5ocWYzanZvczFubWh2MWcgbmV3d2luZUBtdWx0bm9tYWguZWR1' title='alternate'/>
-		$gcalLink = _eventscategory_get_first_xpath_result($xpath, './/atom:link[@rel="alternate" and @type="text/html"]', $entry); #$xpath->query('.//atom:link[@rel="alternate" and @type="text/html"]', $entry)->item(0);
+		$gcalLink = _eventscategory_get_first_xpath_result($xpath, './atom:link[@rel="alternate" and @type="text/html"]', $entry); #$xpath->query('./atom:link[@rel="alternate" and @type="text/html"]', $entry)->item(0);
 		if($gcalLink)
 			$postmeta['_gcal_alternate_link'] = $gcalLink->getAttribute('href');
 		
 		//<content type='text'>: NOTE: Must add a the_content filter to supply from _gcal_content postmeta if post_content is blank
-		$content = _eventscategory_get_first_xpath_result($xpath, './/atom:content', $entry); #$xpath->query('.//atom:content', $entry)->item(0);
+		$content = _eventscategory_get_first_xpath_result($xpath, './atom:content', $entry); #$xpath->query('./atom:content', $entry)->item(0);
 		if($content)
 			$postmeta['_gcal_content'] = trim($content->textContent);
 		
 		//<gd:originalEvent id='ouaia8m2nved9t1d80vl88kopo' href='http://www.google.com/calendar/feeds/.../public/full/ouaia8m2nved9t1d80vl88kopo'>
-		$originalEvent = _eventscategory_get_first_xpath_result($xpath, './/gd:originalEvent', $entry); #$xpath->query('.//gd:originalEvent', $entry)->item(0);
+		$originalEvent = _eventscategory_get_first_xpath_result($xpath, './gd:originalEvent', $entry); #$xpath->query('./gd:originalEvent', $entry)->item(0);
 		if($originalEvent)
 			$postmeta['_gcal_originalevent_id'] = $originalEvent->getAttribute('href');
 		
@@ -569,28 +554,28 @@ function get_the_event_location($include_gmaps_link = true, $before = '', $after
  * Output the event's date and time
  * @see get_the_event_datetime()
  */
-function the_event_datetime($dt_format = '', $include_time_tags = true){
-	echo get_the_event_datetime($dt_format, $include_time_tags);
+function the_event_datetime($dt_format = ''){
+	echo get_the_event_datetime($dt_format);
 }
 
 /**
- * Return the event's date and time
+ * Return the event's date and time; note that if the postmeta '_gcal_starttime'
+ * and '_gcal_endtime' aren't provided, it will use the post_date as the event time
+ * and not provide an end time.
  * @param string $dt_format The extended format used by date(), bracketed stuff
  *                          is omitted if unneeded, for example:
  *                          F jS, [Y @] g[:i][a]{[ - ][F ][j][S, ][Y,] g[:i]a} T
  *                          F jS, [Y @] <g[:i][a]>{[ - ][F ][j][S, ][Y,] g[:i]a} T
  * @param boolean $include_time_tags Whether or not <time> and related tags will be returned
+ * @todo Why even offer $include_time_tags? They can do strip_tags themselves.
+ * @todo Should we offer a before and after? Argument will need to be $date_format, $datetime_format
  * @todo We need to make the datetime formats get placed inside of their own delimiters, perhaps <>
  * @todo For all day events, we should not show the end time if it is the same.
  * @todo We should have multiple time formats according to the different time sitatuions
  */
-function get_the_event_datetime($dt_format = '', $include_time_tags = true){
-	global $post, $eventscategory_default_main_date_format;
+function get_the_event_datetime($dt_format = '', $event_span_separator = "<span class='separator'> - </span>"){
+	global $post;
 	$output = '';
-	
-	if(!$dt_format)
-		$dt_format = get_option('eventscategory_date_format'); #$dt_format = $eventscategory_default_main_date_format;
-	$dt_format = apply_filters('eventscategory_date_format', $dt_format);
 	
 	$gcal_startTime = get_post_meta($post->ID, '_gcal_starttime', true);
 	$gcal_endTime = get_post_meta($post->ID, '_gcal_endtime', true);
@@ -598,6 +583,12 @@ function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 	if(!$is_all_day){
 		$is_all_day = preg_match('/^\d\d\d\d-\d\d-\d\d.00:00/', $gcal_startTime ? $gcal_startTime : $post->post_date)
 		           && preg_match('/^\d\d\d\d-\d\d-\d\d.00:00/', $gcal_endTime ? $gcal_endTime : $post->post_date);
+	}
+	
+	//Get the date format
+	if(!$dt_format){
+		$dt_format = $is_all_day ? apply_filters('eventscategory_date_format',     get_option('eventscategory_date_format'))
+		                         : apply_filters('eventscategory_datetime_format', get_option('eventscategory_datetime_format'));
 	}
 	
 	$startTimestamp = $gcal_startTime ? strtotime($gcal_startTime) : (int)get_the_time('U');
@@ -608,21 +599,12 @@ function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 		$dt_format = str_replace('T', '', $dt_format);
 	}
 	
-	//Remove all time formatting if event is all-day
-	#TODO: The date-time format should be extended to search for date-times
-	if($is_all_day){
-		#print "<p style='color:red'>ALLDAY</p>";
-		$dt_format = preg_replace('/[@gia\:T]/', '', $dt_format); #MORE TIME FORMATS ARE NEEDED
-		#print "<pre>$dt_format</pre>";
-		$dt_format = preg_replace('/,?\s*\[\]/', '', $dt_format);
-		#print "<pre>$dt_format</pre>";
-	}
-	
-	if(preg_match('/^(.+?){(?:\[(.*?)\])?(.+?)}(.+)?$/', $dt_format, $matches)){
+	//Parse the date/time format string for its start, separator, end, and timezone components
+	if(preg_match('/^(.+?){(.+?)}(.*)?$/', $dt_format, $matches)){
 		$dtstart = $matches[1];
-		$dtseparator = $matches[2];
-		$dtend = $matches[3];
-		$dttz = $matches[4];
+		#$dtseparator = $matches[2];
+		$dtend = $matches[2];
+		$dttz = $matches[3];
 		$formatChars = 'dDjlNSwzWFmMntLoYyaABgGhHisueIOPTZcrU';
 		#NOTE: Seconds should not be allowed
 		
@@ -643,7 +625,7 @@ function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 				$end[$c] = date($c, $endTimestamp);
 			}
 		}
-		$is_same_day = ($start['z'] === $end['z'] && $start['Y'] === $end['Y']);
+		$is_same_day = empty($end) || ($start['z'] === $end['z'] && $start['Y'] === $end['Y']);
 		
 		#dtstart: Find all formatting characters which are optional
 		if(preg_match_all("/\[[^\[\]]*?(?<!\\\\)([$formatChars])[^\[\]]*?\]/", $dtstart, $matches)){
@@ -670,8 +652,7 @@ function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 		$output .= '</time>';
 		#dtend: Remove all formatting characters which are redundant
 		if($startTimestamp != $endTimestamp && $endTimestamp){
-			if($dtseparator)
-				$output .= "<span class='separator'>$dtseparator</span>";
+			$output .= apply_filters('eventscategory_event_span_separator', $event_span_separator); #$output .= "<span class='separator'>$dtseparator</span>";
 			
 			if(preg_match_all("/\[[^\[\]]*?(?<!\\\\)([$formatChars])[^\[\]]*?\]/", $dtend, $matches)){
 				foreach($matches[1] as $c){
@@ -695,8 +676,8 @@ function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 			}
 			$dtend = trim($dtend);
 			
-			$output .= '<time class="dtend" datetime="' . date('Y-m-d\TH:i:s', $endTimestamp) . 'Z">';
-			$output .= rtrim(date($dtend, $endTimestamp), ','); #TODO! Trim
+			$output .= '<time class="dtend" datetime="' . gmdate('Y-m-d\TH:i:s', $endTimestamp) . 'Z">';
+			$output .= date($dtend, $endTimestamp);
 			$output .= '</time>';
 		}
 		
@@ -705,9 +686,6 @@ function get_the_event_datetime($dt_format = '', $include_time_tags = true){
 			$output .= date($dttz, $endTimestamp);
 			$output .= '</span>';
 		}
-		
-		if(!$include_time_tags)
-			$output = strip_tags($output);
 		return $output;
 	}
 	else {

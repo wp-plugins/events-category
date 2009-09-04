@@ -3,7 +3,6 @@
  * Events Category admin interface
  */
 
-
 /**
  * Add Events Category options page to menu
  */
@@ -23,6 +22,8 @@ function eventscategory_action_admin_menu() {
  */
 function eventscategory_register_settings(){
 	register_setting( 'eventscategory-group', 'eventscategory_gcal_feed_url' );
+	register_setting( 'eventscategory-group', 'eventscategory_datetime_format' );
+	register_setting( 'eventscategory-group', 'eventscategory_date_format' );
 }
 
 
@@ -35,6 +36,9 @@ if(is_admin()){
  * Events Category options page
  */
 function eventscategory_admin_options() {
+	global $eventscategory_default_datetime_format;
+	global $eventscategory_default_date_format;
+
 	//$page_options = array(
 	//	'eventscategory_gcal_feed_url'
 	//);
@@ -88,6 +92,37 @@ ECTEXT
 , EVENTSCATEGORY_TEXT_DOMAIN); ?>
 						</span>
 					</td>
+				</tr>
+				<tr valign="top">
+					<th scope="row"><label for="eventscategory_datetime_format"><?php _e("Date/Time Format", EVENTSCATEGORY_TEXT_DOMAIN) ?></label></th>
+					<td>
+						<input type="text" class="regular-text" id="eventscategory_datetime_format" name="eventscategory_datetime_format"  value="<?php echo esc_attr(get_option('eventscategory_datetime_format')); ?>" /><br />
+						<span class="description">
+<?php _e(sprintf(<<<ECTEXT
+							This date format has an extended syntax to handle a start time and end time.
+							Redundant format characters which are enclosed in brackets are removed.
+							The end date/time is enclosed in curly brackets.
+							To see the format characters available, see <a href="http://codex.wordpress.org/Formatting_Date_and_Time" target="_blank">Documentation on date formatting</a>.
+							The default date/time format for this field is:<br /><code>%s</code>
+ECTEXT
+, $eventscategory_default_datetime_format), EVENTSCATEGORY_TEXT_DOMAIN); ?>
+						</span>
+					</td>
+					</th>
+				</tr>
+				<tr valign="top">
+					<th scope="row"><label for="eventscategory_date_format"><?php _e("All-day Date Format", EVENTSCATEGORY_TEXT_DOMAIN) ?></label></th>
+					<td>
+						<input type="text" class="regular-text" id="eventscategory_date_format" name="eventscategory_date_format"  value="<?php echo esc_attr(get_option('eventscategory_date_format')); ?>" /><br />
+						<span class="description">
+<?php _e(sprintf(<<<ECTEXT
+							This date format uses the same extensions as as above, except it is used when there is no time component to an event, as with all-day events such as holidays.
+							The default date format for this field is:<br /><code>%s</code>
+ECTEXT
+, $eventscategory_default_date_format), EVENTSCATEGORY_TEXT_DOMAIN); ?>
+						</span>
+					</td>
+					</th>
 				</tr>
 			</table>
 			<p class="submit">
